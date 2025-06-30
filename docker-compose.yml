@@ -1,0 +1,29 @@
+version: "3.8"
+
+services:
+  frontend:
+    image: quay.io/bilelrifi/job-portal-frontend     
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+  backend:
+    image: quay.io/bilelrifi/job-portal-backend     
+    ports:
+      - "3000:3000"
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/mydb
+    depends_on:
+      - mongo
+
+  mongo:
+    image: quay.io/bilelrifi/job-portal-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodata:/data/db
+    restart: always
+
+volumes:
+  mongodata:
