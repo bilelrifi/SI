@@ -14,7 +14,8 @@ FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
 
 # set correct permissions 
-RUN chown -R nginx:nginx /usr/share/nginx/html
+RUN mkdir -p /var/cache/nginx/client_temp && \
+    chown -R nginx:nginx /usr/share/nginx/html /var/cache/nginx
 
 # Drop to nginx user 
 USER nginx
