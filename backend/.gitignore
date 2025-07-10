@@ -1,1 +1,26 @@
-node_modules
+# Node.js
+node_modules/
+.env
+.env.local
+.env.production
+dist/
+build/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS-related
+.DS_Store
+Thumbs.db
+
+# PODMAN
+*.pid
+*.tgz
+docker-compose.override.yml
+
+# IDEs
+.vscode/
+.idea/
+*.swp

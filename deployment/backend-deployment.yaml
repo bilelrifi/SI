@@ -14,9 +14,9 @@ spec:
     spec:
       containers:
       - name: backend
-        image: quay.io/bilelrifi/job-portal-backend
+        image: quay.io/bilelrifi/job-portal-backend:v5
         ports:
         - containerPort: 3000
         env:
         - name: MONGO_URL
-          value: mongodb://mongo-service:27017/mydb
+          value: mongodb://mongo:27017/job_portal

@@ -14,9 +14,10 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: quay.io/bilelrifi/job-portal-frontend:v4
+        image: quay.io/bilelrifi/job-portal-frontend:v5
         ports:
         - containerPort: 8080
         env:
         - name: REACT_APP_BACKEND_URL
           value: http://backend-service:3000
+     

@@ -1,16 +1,33 @@
 FROM node:20-alpine
 
+# Set working directory
 WORKDIR /app
+
+# Install production dependencies using npm ci
+COPY package*.json ./
+RUN npm ci --production
+
+# Copy the rest of the application code
 COPY . .
 
+# Add non-root user and group
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+# Install curl for health checks
+RUN apk add --no-cache curl
+
+# Fix ownership for rootless access
+RUN chown -R appuser:appgroup /app
+
+# Switch to non-root user
 USER appuser
 
-ENV MONGO_URL=mongodb://mongo:27017/mydb
-
+# Expose backend port
 EXPOSE 3000
 
+# Define healthcheck endpoint using curl
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
+  CMD curl --fail http://localhost:3000/health || exit 1
 
+# Start the backend
 CMD ["node", "index.js"]

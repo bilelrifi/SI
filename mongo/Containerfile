@@ -1,8 +1,8 @@
-FROM mongo:7.0  
+FROM mongo:7.0
 
-ENV MONGO_INITDB_DATABASE=mydb
+ENV MONGO_INITDB_DATABASE=job_portal
 
 EXPOSE 27017
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD mongosh --eval "db.adminCommand('ping')" || exit 1
+  CMD mongo --eval "db.adminCommand('ping')" || exit 1
