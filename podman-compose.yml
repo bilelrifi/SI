@@ -2,14 +2,14 @@ version: "3.8"
 
 services:
   frontend:
-    image: quay.io/bilelrifi/job-portal-frontend:v5   
+    image: quay.io/bilelrifi/job-portal-frontend:v6   
     ports:
       - "8080:8080"
     depends_on:
       - backend
 
   backend:
-    image: quay.io/bilelrifi/job-portal-backend:v5     
+    image: quay.io/bilelrifi/job-portal-backend:v6     
     ports:
       - "3000:3000"
     env_file:
@@ -18,7 +18,7 @@ services:
       - mongo
 
   mongo:
-    image: quay.io/bilelrifi/job-portal-mongo:v5
+    image: quay.io/bilelrifi/job-portal-mongo:v6
     ports:
       - "27017:27017"
     volumes:
