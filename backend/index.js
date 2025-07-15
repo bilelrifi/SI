@@ -9,6 +9,7 @@ import companyRoute from "./routes/company.route.js";
 import jobRoute from "./routes/job.route.js";
 import applicationRoute from "./routes/application.route.js";
 import masterDataRoute from "./routes/master.route.js"; 
+import healthRoute from './routes/health.route.js';
 //jb bhi import use kro saath me uska extension bhi likho
 
 const app = express();
@@ -34,6 +35,7 @@ app.use("/api/v1/application",applicationRoute);
 app.use("/api/v1/master", masterDataRoute); 
 
 //http://localhost:8000/api/v1/user/register
+app.use('/api', healthRoute); // So your endpoints are: /api/health, /api/ready, /api/startup
 
 app.listen(PORT, ()=>{
   connectDB();
