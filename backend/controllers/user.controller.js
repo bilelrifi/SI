@@ -16,7 +16,8 @@ export const register = async (req, res) => {
     }
     const file = req.file;
     const fileUri = getDataUri(file);
-    const cloudResponse = await cloudinary.uploader.upload(fileUri.content);
+    //const cloudResponse = await cloudinary.uploader.upload(fileUri.content);
+    const cloudResponse = "https://res.cloudinary.com/demo/image/upload/sample.jpg"; //replacement with Dummy image replacement
     const user = await User.findOne({ email });
     if (user) {
       return res.status(400).json({
@@ -32,7 +33,7 @@ export const register = async (req, res) => {
       password: hashedPassword,
       role,
       profile:{
-        profilePhoto: cloudResponse.secure_url,
+        profilePhoto: "cloudResponse.secure_url",
       }
     });
 
@@ -107,7 +108,7 @@ export const login = async (req, res) => {
       .cookie("token", token, {
         maxAge: 5 * 24 * 60 * 60 * 1000,
         httpOnly: true,
-        sameSite: "strict",
+        sameSite: "None",  //changed from Strict to none!!
       })
       .json({
         message: `Welcome back ${user.fullname}`,
@@ -142,7 +143,8 @@ export const updateProfile = async(req,res) =>{
     const file = req.file;
     //cloudinary ayega idhar
     const fileUri = getDataUri(file);
-    const cloudResponse = await cloudinary.uploader.upload(fileUri.content);
+    //const cloudResponse = await cloudinary.uploader.upload(fileUri.content);
+    const cloudResponse = "https://res.cloudinary.com/demo/image/upload/sample.jpg"; //replacement with Dummy
 
     let skillsArray = [];
     if (skills) {

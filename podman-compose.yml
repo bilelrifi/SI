@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   frontend:
-    image: quay.io/bilelrifi/job-portal-frontend:v6   
+    image:  quay.io/bilelrifi/job-portal-frontend:v6  
     ports:
       - "8080:8080"
     depends_on:
