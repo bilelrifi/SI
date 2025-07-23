@@ -1,22 +1,22 @@
 frontend:
-  image: quay.io/bilelrifi/job-portal-frontend:v6     
+  image: quay.io/bilelrifi/job-portal-frontend:v6
   replicas: 1
   env:
     - name: REACT_APP_BACKEND_URL
       value: https://job-portal-backend-gamma.apps.ocp.smartek.ae
 
 backend:
-  image: quay.io/bilelrifi/job-portal-backend:v6     
+  image: quay.io/bilelrifi/job-portal-backend:v6
   replicas: 1
   env:
     - name: MONGO_URL
-      value: mongodb://admin:admin@{{ .Release.Name }}-mongodb:27017/proddb?authSource=admin
+      value: mongodb://admin:admin@job-portal-dev-mongodb:27017/proddb?authSource=admin
     - name: MONGO_INITDB_ROOT_USERNAME
       value: admin
     - name: MONGO_INITDB_ROOT_PASSWORD
       value: admin
     - name: SECRET_KEY
-      value: "HarHarMahadev"
+      value: HarHarMahadev
     - name: CORS_ORIGIN
       value: https://job-portal-frontend-gamma.apps.ocp.smartek.ae
     - name: CLOUD_NAME
@@ -27,6 +27,11 @@ backend:
       value: "zvNVBmcA32j7XWdPaFJOeit-5ow"
 
 mongodb:
-  image: quay.io/bilelrifi/job-portal-mongo:v6     
+  image: quay.io/bilelrifi/job-portal-mongo:v6
   replicas: 1
   pvcName: gamma-db-pvc
+  env:
+    - name: MONGO_INITDB_ROOT_USERNAME
+      value: admin
+    - name: MONGO_INITDB_ROOT_PASSWORD
+      value: admin
