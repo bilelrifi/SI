@@ -24,6 +24,6 @@ spec:
             - mountPath: /data/db
               name: mongo-persistent-storage
       volumes:
-        - name: mongo-storage
+        - name: mongo-persistent-storage 
           persistentVolumeClaim:
             claimName: gamma-db-pvc
