@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.frontend.configMapName }}
+data:
+  CLOUD_NAME: {{ .Values.frontend.config.CLOUD_NAME | quote }}
+  VITE_API_BASE_URL: {{ .Values.frontend.config.VITE_API_BASE_URL | quote }}

@@ -1,37 +1,29 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-mongodb
+  name: {{ include "job-portal.fullname" . }}-mongo
 spec:
-  replicas: {{ .Values.mongodb.replicas }}
+  replicas: 1
   selector:
     matchLabels:
-      app: {{ .Release.Name }}-mongodb
+      app: {{ .Values.global.appName }}-mongo
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}-mongodb
+        app: {{ .Values.global.appName }}-mongo
     spec:
       containers:
-        - name: mongodb
-          image: {{ .Values.mongodb.image }}
+        - name: mongo
+          image: {{ .Values.mongo.image.repository }}:{{ .Values.mongo.image.tag }}
           ports:
-            - containerPort: 27017
-          env:
-            - name: MONGO_INITDB_ROOT_USERNAME
-              valueFrom:
-                configMapKeyRef:
-                  name: {{ .Release.Name }}-backend
-                  key: MONGO_INITDB_ROOT_USERNAME
-            - name: MONGO_INITDB_ROOT_PASSWORD
-              valueFrom:
-                configMapKeyRef:
-                  name: {{ .Release.Name }}-backend
-                  key: MONGO_INITDB_ROOT_PASSWORD
+            - containerPort: {{ .Values.mongo.containerPort }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.mongo.secretName }}
           volumeMounts:
-            - name: mongo-persistent-storage
-              mountPath: /data/db
+            - mountPath: /data/db
+              name: mongo-persistent-storage
       volumes:
         - name: mongo-persistent-storage
           persistentVolumeClaim:
-            claimName: {{ .Values.mongodb.pvcName }}
+            claimName: gamma-db-pvc

@@ -1,24 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-backend
+  name: {{ include "job-portal.fullname" . }}-backend
 spec:
-  replicas: {{ .Values.backend.replicas }}
+  replicas: 1
   selector:
     matchLabels:
-      app: {{ .Release.Name }}-backend
+      app: {{ .Values.global.appName }}-backend
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}-backend
+        app: {{ .Values.global.appName }}-backend
     spec:
       containers:
         - name: backend
-          image: {{ .Values.backend.image }}
+          image: {{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}
           ports:
-            - containerPort: 3000
-          env:
-            {{- range .Values.backend.env }}
-            - name: {{ .name }}
-              value: {{ .value | quote }}
-            {{- end }}
+            - containerPort: {{ .Values.backend.containerPort }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.backend.secretName }}
+          resources: {{- toYaml .Values.backend.resources | nindent 12 }}
