@@ -7,7 +7,7 @@ backend:
     API_KEY: "858319527567711"
     API_SECRET: "zvNVBmcA32j7XWdPaFJOeit-5ow"
     CLOUD_NAME: "dq8ariioz"
-    MONGO_URL: "mongodb://admin:admin@job-portal-mongo-dev:27017/job_portal_dev?authSource=admin"
+    MONGO_URL: "mongodb://admin:admin@{{ .Release.Name }}-myapp-mongo:27017/job_portal_dev?authSource=admin"
     SECRET_KEY: "HarHarMahadev"
     CORS_ORIGIN: "https://job-portal-frontend-gamma.apps.ocp.smartek.ae"
 
