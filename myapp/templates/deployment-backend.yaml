@@ -17,7 +17,9 @@ spec:
           image: {{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}
           ports:
             - containerPort: {{ .Values.backend.containerPort }}
+          {{- if .Values.backend.secretName }}
           envFrom:
             - secretRef:
                 name: {{ .Values.backend.secretName }}
-          resources: {{- toYaml .Values.backend.resources | nindent 12 }}
+          {{- end }}
+
