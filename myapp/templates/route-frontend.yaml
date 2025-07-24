@@ -1,8 +1,18 @@
+{{- if .Values.frontend.enabled }}
 apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
-  name: {{ .Release.Name }}-frontend
+  name: {{ include "job-portal.fullname" . }}-frontend
+  labels:
+    app: {{ .Values.global.appName }}-frontend
 spec:
   to:
     kind: Service
-    name: {{ .Release.Name }}-frontend
+    name: {{ include "job-portal.fullname" . }}-frontend
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+  wildcardPolicy: None
+{{- end }}

@@ -2,6 +2,7 @@ global:
   appName: job-portal
 
 frontend:
+  enabled: true 
   image:
     repository: quay.io/bilelrifi/job-portal-frontend
     tag: v6
