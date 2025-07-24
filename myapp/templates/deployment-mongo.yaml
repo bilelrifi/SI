@@ -17,10 +17,17 @@ spec:
           image: {{ .Values.mongo.image.repository }}:{{ .Values.mongo.image.tag }}
           ports:
             - containerPort: {{ .Values.mongo.containerPort }}
-          {{- if .Values.mongo.secretName }}
           envFrom:
             - secretRef:
                 name: {{ .Values.mongo.secretName }}
+          {{- if .Values.mongo.persistence.enabled }}
+          volumeMounts:
+            - mountPath: /data/db
+              name: mongo-persistent-storage
           {{- end }}
-
-          
+      {{- if .Values.mongo.persistence.enabled }}
+      volumes:
+        - name: mongo-persistent-storage 
+          persistentVolumeClaim:
+            claimName: gamma-db-pvc
+      {{- end }}

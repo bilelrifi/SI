@@ -38,4 +38,7 @@ mongo:
     repository: quay.io/bilelrifi/job-portal-mongo
     tag: v6
   containerPort: 27017
-  
+  secretName: mongo-secrets
+  storage: 1Gi
+  persistence:
+    enabled: false
