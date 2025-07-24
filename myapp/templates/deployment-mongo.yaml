@@ -20,10 +20,4 @@ spec:
           envFrom:
             - secretRef:
                 name: {{ .Values.mongo.secretName }}
-          volumeMounts:
-            - mountPath: /data/db
-              name: mongo-persistent-storage
-      volumes:
-        - name: mongo-persistent-storage 
-          persistentVolumeClaim:
-            claimName: gamma-db-pvc
+          
