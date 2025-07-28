@@ -1,0 +1,16 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ include "job-portal.fullname" . }}-backend
+  labels:
+    app: {{ .Values.global.appName }}-backend
+spec:
+  to:
+    kind: Service
+    name: {{ include "job-portal.fullname" . }}-backend
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+  wildcardPolicy: None
