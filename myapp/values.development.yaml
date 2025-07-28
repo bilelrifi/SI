@@ -10,7 +10,7 @@ backend:
     CLOUD_NAME: "dq8ariioz"
     MONGO_URL: "mongodb://admin:admin@{{ .Release.Name }}-myapp-mongo:27017/job_portal_dev?authSource=admin"
     SECRET_KEY: "HarHarMahadev"
-    CORS_ORIGIN: "https://job-portal-frontend-gamma.apps.ocp.smartek.ae"
+    CORS_ORIGIN: "https://job-portal-dev-myapp-frontend-gamma.apps.ocp.smartek.ae"
 
 mongo:
   secret:
@@ -18,4 +18,4 @@ mongo:
     MONGO_INITDB_ROOT_PASSWORD: "admin"
     MONGO_INITDB_DATABASE: "job_portal_dev"
   persistence:
-    enabled: false
+    enabled: true
