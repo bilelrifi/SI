@@ -20,14 +20,22 @@ spec:
           envFrom:
             - secretRef:
                 name: {{ .Values.mongo.secretName }}
-          {{- if .Values.mongo.persistence.enabled }}
           volumeMounts:
+            - name: mongo-configdb
+              mountPath: /data/configdb
+            - name: mongo-datadb
+              mountPath: /data/db
+              {{- if .Values.mongo.persistence.enabled }}
             - mountPath: /data/db
               name: mongo-persistent-storage
-          {{- end }}
-      {{- if .Values.mongo.persistence.enabled }}
+              {{- end }}
       volumes:
+        - name: mongo-configdb
+          emptyDir: {}
+        - name: mongo-datadb
+          emptyDir: {}
+          {{- if .Values.mongo.persistence.enabled }}
         - name: mongo-persistent-storage 
           persistentVolumeClaim:
             claimName: gamma-db-pvc
-      {{- end }}
+          {{- end }}
