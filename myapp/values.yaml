@@ -41,4 +41,4 @@ mongo:
   secretName: mongo-secrets
   storage: 1Gi
   persistence:
-    enabled: false
+    enabled: true
