@@ -5,7 +5,7 @@ frontend:
   enabled: true 
   image:
     repository: quay.io/bilelrifi/job-portal-frontend
-    tag: v6
+    tag: v7
   containerPort: 8080
   configMapName: frontend-config
   config:
@@ -36,7 +36,7 @@ backend:
 mongo:
   image:
     repository: quay.io/bilelrifi/job-portal-mongo
-    tag: v7
+    tag: v6
   containerPort: 27017
   secretName: mongo-secrets
   storage: 1Gi
