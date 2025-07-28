@@ -1,7 +1,7 @@
 frontend:
   enabled: true 
   config:
-    VITE_API_BASE_URL: "https://job-portal-dev-myapp-backend-gamma.apps.ocp.smartek.ae/api"
+    VITE_API_BASE_URL: "https://job-portal-dev-myapp-backend-gamma.apps.ocp.smartek.ae"
 
 backend:
   env:

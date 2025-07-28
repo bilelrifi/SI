@@ -36,7 +36,7 @@ backend:
 mongo:
   image:
     repository: quay.io/bilelrifi/job-portal-mongo
-    tag: v6
+    tag: v7
   containerPort: 27017
   secretName: mongo-secrets
   storage: 1Gi
