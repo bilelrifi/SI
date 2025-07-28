@@ -26,7 +26,7 @@ spec:
             - name: mongo-datadb
               mountPath: /data/db
               {{- if .Values.mongo.persistence.enabled }}
-            - mountPath: /data/db
+            - mountPath: /db/data 
               name: mongo-persistent-storage
               {{- end }}
       volumes:
