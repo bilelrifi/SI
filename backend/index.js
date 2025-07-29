@@ -28,6 +28,7 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 }
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 //middleware 
 app.use(express.json());   //hum json pass krenge.

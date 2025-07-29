@@ -15,6 +15,10 @@ RUN npm run build
 # Stage 2: Serve the build with NGINX
 FROM nginx:alpine
 
+#Ensuring the env is passed to the final image
+ARG VITE_API_BASE_URL
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+
 # Install wget for healthcheck
 RUN apk add --no-cache wget
 

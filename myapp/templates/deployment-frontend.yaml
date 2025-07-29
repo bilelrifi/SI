@@ -14,10 +14,14 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}"
+          image: {{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}
           ports:
             - containerPort: {{ .Values.frontend.containerPort }}
-          envFrom:
-            - configMapRef:
-                name: {{ .Values.frontend.configMapName }}
-          resources: {{- toYaml .Values.frontend.resources | nindent 12 }}
+          env:
+            - name: VITE_API_BASE_URL 
+              value: "https://job-portal-dev-myapp-backend-gamma.apps.ocp.smartek.ae"
+            - name: CLOUD_NAME
+              value: "dq8ariioz" 
+          #  - configMapRef:
+          #      name: {{ .Values.frontend.configMapName }}
+          #resources: {{- toYaml .Values.frontend.resources | nindent 12 }}
