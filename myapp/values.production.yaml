@@ -1,7 +1,10 @@
 frontend:
   enabled: true 
+  image:
+    repository: quay.io/bilelrifi/job-portal-frontend
+    tag: v8
   config:
-    VITE_API_BASE_URL: "https://job-portal-backend-gamma.apps.ocp.smartek.ae/api"
+    VITE_API_BASE_URL: "http://job-portal-prod-myapp-backend-gamma.apps.ocp.smartek.ae"
 
 backend:
   env:
@@ -10,7 +13,7 @@ backend:
     CLOUD_NAME: "dq8ariioz"
     MONGO_URL: "mongodb://admin:admin@{{ .Release.Name }}-myapp-mongo:27017/job_portal?authSource=admin"
     SECRET_KEY: "HarHarMahadev"
-    CORS_ORIGIN: "https://job-portal-frontend-gamma.apps.ocp.smartek.ae"
+    CORS_ORIGIN: "http://job-portal-prod-myapp-frontend-gamma.apps.ocp.smartek.ae"
 
 mongo:
   secret:
@@ -18,4 +21,4 @@ mongo:
     MONGO_INITDB_ROOT_PASSWORD: "admin"
     MONGO_INITDB_DATABASE: "job_portal"
   persistence:
-    enabled: false
+    enabled: true

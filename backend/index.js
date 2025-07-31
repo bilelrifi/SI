@@ -18,7 +18,7 @@ const PORT = process.env.PORT || 3000;
 
 // Allowed frontend origins
 const allowedOrigins = [
-  'https://job-portal-dev-myapp-frontend-gamma.apps.ocp.smartek.ae',
+  'http://job-portal-dev-myapp-frontend-gamma.apps.ocp.smartek.ae',
   'https://job-portal-frontend-gamma.apps.ocp.smartek.ae',
   'http://localhost:8080',
   'http://localhost:5173',
@@ -40,7 +40,7 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 };
 
-// CORS middleware (must come before all routes)
+// CORS middleware 
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions)); // handle pre-flight requests
 

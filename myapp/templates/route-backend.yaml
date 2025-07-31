@@ -8,9 +8,5 @@ spec:
   to:
     kind: Service
     name: {{ include "job-portal.fullname" . }}-backend
-    weight: 100
   port:
     targetPort: http
-  tls:
-    termination: edge
-  wildcardPolicy: None
