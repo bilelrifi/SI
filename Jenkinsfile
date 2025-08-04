@@ -3,9 +3,9 @@ pipeline {
 
     environment {
         PROJECT_NAME = "gamma"
-        OPENSHIFT_SERVER = "https://api.ocp.smartek.ae:6443" 
-        OPENSHIFT_TOKEN = credentials('oc-token-id')
-        REGISTRY_CREDENTIALS = credentials('f990f24e-9b6e-4728-b4ef-8dd4392b500d')
+        OPENSHIFT_SERVER = "https://api.ocp.smartek.ae:6443"
+
+        REGISTRY_CREDENTIALS = 'f990f24e-9b6e-4728-b4ef-8dd4392b500d'  
 
         FRONTEND_IMAGE = "quay.io/bilelrifi/job-portal-frontend:p"
         BACKEND_IMAGE = "quay.io/bilelrifi/job-portal-backend:p"
@@ -51,12 +51,13 @@ pipeline {
 
         stage('Deploy to OpenShift') {
             steps {
-                withCredentials([string(credentialsId: "${OPENSHIFT_TOKEN}", variable: 'OC_TOKEN')]) {
+                withCredentials([string(credentialsId: 'oc-token-id', variable: 'OC_TOKEN')]) {
                     sh """
+                        echo "Logging into OpenShift..."
                         oc login --token=$OC_TOKEN --server=${OPENSHIFT_SERVER} --insecure-skip-tls-verify
                         oc project ${PROJECT_NAME}
 
-                        # Clean existing apps
+                        # Clean existing frontend & backend apps (ignore errors)
                         oc delete all -l app=job-frontend || true
                         oc delete all -l app=job-backend || true
 
