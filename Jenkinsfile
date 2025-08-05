@@ -31,13 +31,27 @@ pipeline {
 
         stage('Login to OpenShift') {
             steps {
+                // Option 1: Using Token (recommended)
                 withCredentials([string(credentialsId: 'oc-token-id', variable: 'OC_TOKEN')]) {
                     sh """
-                        echo "Logging into OpenShift..."
-                        oc login --token=$OC_TOKEN --server=${OPENSHIFT_SERVER} --insecure-skip-tls-verify
+                        echo "Logging into OpenShift with token..."
+                        oc login --token=\$OC_TOKEN --server=${OPENSHIFT_SERVER} --insecure-skip-tls-verify
                         oc project ${PROJECT_NAME}
+                        echo "Successfully logged in and switched to project: ${PROJECT_NAME}"
                     """
                 }
+                
+                // Option 2: Using Username/Password (uncomment if you prefer this)
+                /*
+                withCredentials([usernamePassword(credentialsId: 'oc-user-pass', passwordVariable: 'OC_PASS', usernameVariable: 'OC_USER')]) {
+                    sh """
+                        echo "Logging into OpenShift with username/password..."
+                        oc login --username=\$OC_USER --password=\$OC_PASS --server=${OPENSHIFT_SERVER} --insecure-skip-tls-verify
+                        oc project ${PROJECT_NAME}
+                        echo "Successfully logged in and switched to project: ${PROJECT_NAME}"
+                    """
+                }
+                */
             }
         }
 
