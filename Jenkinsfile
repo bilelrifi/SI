@@ -41,9 +41,9 @@ pipeline {
             steps {
                 withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIALS}", passwordVariable: 'QUAY_PASS', usernameVariable: 'QUAY_USER')]) {
                     sh """
-                        podman login quay.io -u $QUAY_USER -p $QUAY_PASS
-                        podman push ${FRONTEND_IMAGE}
-                        podman push ${BACKEND_IMAGE}
+                        docker login quay.io -u $QUAY_USER -p $QUAY_PASS
+                        docker push ${FRONTEND_IMAGE}
+                        docker push ${BACKEND_IMAGE}
                     """
                 }
             }
