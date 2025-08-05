@@ -24,7 +24,7 @@ pipeline {
         stage('Build Frontend Image') {
             steps {
                 sh """
-                    docker build -f ${FRONTEND_CONTEXT}/Containerfile -t ${FRONTEND_IMAGE} ${FRONTEND_CONTEXT}
+                    podman build -f ${FRONTEND_CONTEXT}/Containerfile -t ${FRONTEND_IMAGE} ${FRONTEND_CONTEXT}
                 """
             }
         }
@@ -32,7 +32,7 @@ pipeline {
         stage('Build Backend Image') {
             steps {
                 sh """
-                    docker build -f ${BACKEND_CONTEXT}/Containerfile -t ${BACKEND_IMAGE} ${BACKEND_CONTEXT}
+                    podman build -f ${BACKEND_CONTEXT}/Containerfile -t ${BACKEND_IMAGE} ${BACKEND_CONTEXT}
                 """
             }
         }
@@ -41,9 +41,9 @@ pipeline {
             steps {
                 withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIALS}", passwordVariable: 'QUAY_PASS', usernameVariable: 'QUAY_USER')]) {
                     sh """
-                        docker login quay.io -u $QUAY_USER -p $QUAY_PASS
-                        docker push ${FRONTEND_IMAGE}
-                        docker push ${BACKEND_IMAGE}
+                        podman login quay.io -u $QUAY_USER -p $QUAY_PASS
+                        podman push ${FRONTEND_IMAGE}
+                        podman push ${BACKEND_IMAGE}
                     """
                 }
             }
