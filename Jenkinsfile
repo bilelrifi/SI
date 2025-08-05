@@ -5,7 +5,7 @@ pipeline {
         PROJECT_NAME = "gamma"
         OPENSHIFT_SERVER = "https://api.ocp.smartek.ae:6443"
 
-        REGISTRY_CREDENTIALS = 'f990f24e-9b6e-4728-b4ef-8dd4392b500d'  
+        REGISTRY_CREDENTIALS = 'ce45edfb-ce9a-42be-aa16-afea0bdc5dfc'  
 
         FRONTEND_IMAGE = "quay.io/bilelrifi/job-portal-frontend:p"
         BACKEND_IMAGE = "quay.io/bilelrifi/job-portal-backend:p"
