@@ -24,7 +24,7 @@ pipeline {
         stage('Build Frontend Image') {
             steps {
                 sh """
-                    podman build -f ${FRONTEND_CONTEXT}/Containerfile -t ${FRONTEND_IMAGE} ${FRONTEND_CONTEXT}
+                    docker build -f ${FRONTEND_CONTEXT}/Containerfile -t ${FRONTEND_IMAGE} ${FRONTEND_CONTEXT}
                 """
             }
         }
@@ -32,7 +32,7 @@ pipeline {
         stage('Build Backend Image') {
             steps {
                 sh """
-                    podman build -f ${BACKEND_CONTEXT}/Containerfile -t ${BACKEND_IMAGE} ${BACKEND_CONTEXT}
+                    docker build -f ${BACKEND_CONTEXT}/Containerfile -t ${BACKEND_IMAGE} ${BACKEND_CONTEXT}
                 """
             }
         }
