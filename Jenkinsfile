@@ -39,31 +39,25 @@ pipeline {
         stage('Install podman-compose') {
             steps {
                 sh '''
-                    echo "Installing Python 3.9+ and podman-compose..."
+                    echo 'Installing podman-compose with Python 3...'
 
-                    # Try to find Python >=3.8
-                    PYTHON_BIN=$(command -v python3.9 || command -v python3.10 || command -v python3.11)
+                    # Find a Python 3 executable
+                    PYTHON_BIN=$(command -v python3 || true)
 
                     if [ -z "$PYTHON_BIN" ]; then
-                        echo "Python 3.9+ not found. Installing it..."
-                        # Try to install Python (if sudo is available and OS supports it)
-                        if command -v apt-get > /dev/null; then
-                            sudo apt-get update
-                            sudo apt-get install -y python3.9 python3.9-venv python3-pip
-                            PYTHON_BIN=$(command -v python3.9)
-                        elif command -v dnf > /dev/null; then
-                            sudo dnf install -y python39
-                            PYTHON_BIN=$(command -v python3.9)
-                        else
-                            echo "Unsupported OS or missing package manager."
-                            exit 1
-                        fi
+                        echo "ERROR: Python 3 binary not found in PATH."
+                        echo "Please install Python 3 or add it to the system PATH."
+                        exit 1
                     fi
 
-                    cho "Using Python binary: $PYTHON_BIN"
-                    $PYTHON_BIN -m pip install --user --upgrade pip
+                    echo "Using Python binary: $PYTHON_BIN"
+                    $PYTHON_BIN --version
+
+                    # Upgrade pip and install podman-compose locally
+                    $PYTHON_BIN -m pip install --upgrade --user pip
                     $PYTHON_BIN -m pip install --user podman-compose
-                    echo " podman-compose installation complete."
+
+                    echo "podman-compose installation complete."
                 '''
             }
         }
