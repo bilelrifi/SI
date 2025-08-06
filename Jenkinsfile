@@ -41,36 +41,33 @@ pipeline {
                 sh '''
                     echo "Installing podman-compose..."
 
-                    # Check if podman-compose exists
-                    if ! command -v podman-compose &> /dev/null; then
-                        # Install pip and podman-compose
-                        echo "podman-compose not found, installing..."
-                
-                        # Try installing pip (if missing)
-                        if ! command -v pip3 &> /dev/null; then
-                            echo "pip3 not found, attempting to install..."
-                            if command -v apt-get &> /dev/null; then
-                                sudo apt-get update && sudo apt-get install -y python3-pip
-                            elif command -v dnf &> /dev/null; then
-                                sudo dnf install -y python3-pip
-                            elif command -v yum &> /dev/null; then
-                                sudo yum install -y python3-pip
-                            else
-                                echo "Unsupported package manager. Cannot install pip."
-                                exit 1
-                            fi
-                        fi
+            # Check for python3.11 or fallback to python3
+            if command -v python3.11 &> /dev/null; then
+                PYTHON=python3.11
+            elif command -v python3 &> /dev/null; then
+                PYTHON=python3
+            else
+                echo "No suitable python3 found!"
+                exit 1
+            fi
 
-                        # Install podman-compose using Python 3.11 explicitly
-                        python3.11 -m pip install --user --upgrade podman-compose
+            # Check Python version to ensure >=3.8
+            VERSION=$($PYTHON -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
+            echo "Detected Python version: $VERSION"
 
-                        # Add Python 3.11's bin path to PATH (if needed)
-                        export PATH=$HOME/.local/bin:$PATH
-                    else
-                        echo "podman-compose already installed."
-                    fi
+            # Compare version (rudimentary check)
+            MIN_VER="3.8"
+            if [ "$(printf '%s\n' "$MIN_VER" "$VERSION" | sort -V | head -n1)" != "$MIN_VER" ]; then
+                echo "Python version too old. Need 3.8 or newer."
+                exit 1
+            fi
 
-                    podman-compose --version || echo "podman-compose install failed"
+            # Install podman-compose for the detected python version
+            $PYTHON -m pip install --user --upgrade podman-compose
+
+            export PATH=$HOME/.local/bin:$PATH
+
+            podman-compose --version || echo "podman-compose install failed"
                 '''
             }
         }
