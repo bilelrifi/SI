@@ -61,9 +61,11 @@ pipeline {
                             fi
                         fi
 
-                        # Install podman-compose
-                        pip install --user podman-compose
-                        export PATH="$HOME/.local/bin:$PATH"
+                        # Install podman-compose using Python 3.11 explicitly
+                        python3.11 -m pip install --user --upgrade podman-compose
+
+                        # Add Python 3.11's bin path to PATH (if needed)
+                        export PATH=$HOME/.local/bin:$PATH
                     else
                         echo "podman-compose already installed."
                     fi
