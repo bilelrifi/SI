@@ -39,22 +39,15 @@ pipeline {
         stage('Install podman-compose') {
             steps {
                 sh '''
-                    echo "Installing podman-compose with Python 3.9..."
-
-            PY39_BIN=/opt/python3.9/bin/python3.9
-            export PATH=$HOME/.local/bin:$PATH
-
-            # Install pip if it's missing
-            if ! command -v pip3.9 &> /dev/null; then
-                echo "pip for Python 3.9 not found, installing..."
-                curl -sS https://bootstrap.pypa.io/get-pip.py | $PY39_BIN
+                    echo 'Installing podman-compose with Python 3.9...'
+            PY39_BIN=$(command -v python3.9 || echo "/opt/python3.9/bin/python3.9")
+            if [ ! -x "$PY39_BIN" ]; then
+              echo "Python 3.9 not found at $PY39_BIN"
+              exit 1
             fi
-
-            # Install podman-compose with Python 3.9's pip
-            $PY39_BIN -m pip install --user --upgrade podman-compose
-
-            # Confirm version
-            podman-compose --version || echo "podman-compose install failed"
+            curl -sS https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+            $PY39_BIN get-pip.py
+            pip3.9 install --user podman-compose
                 '''
             }
         }
