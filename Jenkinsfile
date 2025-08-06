@@ -39,41 +39,27 @@ pipeline {
         stage('Install podman-compose') {
             steps {
                 sh '''
-                    echo "Installing podman-compose..."
+                    echo "Installing podman-compose with Python 3.9..."
 
-                    # Check if podman-compose exists
-                    if ! command -v podman-compose &> /dev/null; then
-                        # Install pip and podman-compose
-                        echo "podman-compose not found, installing..."
-                
-                        # Try installing pip (if missing)
-                        if ! command -v pip3 &> /dev/null; then
-                            echo "pip3 not found, attempting to install..."
-                            if command -v apt-get &> /dev/null; then
-                                sudo apt-get update && sudo apt-get install -y python3-pip
-                            elif command -v dnf &> /dev/null; then
-                                sudo dnf install -y python3-pip
-                            elif command -v yum &> /dev/null; then
-                                sudo yum install -y python3-pip
-                            else
-                                echo "Unsupported package manager. Cannot install pip."
-                                exit 1
-                            fi
-                        fi
+            PY39_BIN=/home/bilel/Python-3.9.18/python
+            export PATH=$HOME/.local/bin:$PATH
 
-                        # Install podman-compose
-                        pip install --user podman-compose
-                        export PATH="$HOME/.local/bin:$PATH"
-                    else
-                        echo "podman-compose already installed."
-                    fi
+            # Install pip if it's missing
+            if ! command -v pip3.9 &> /dev/null; then
+                echo "pip for Python 3.9 not found, installing..."
+                curl -sS https://bootstrap.pypa.io/get-pip.py | $PY39_BIN
+            fi
 
-                    podman-compose --version || echo "podman-compose install failed"
+            # Install podman-compose with Python 3.9's pip
+            $PY39_BIN -m pip install --user --upgrade podman-compose
+
+            # Confirm version
+            podman-compose --version || echo "podman-compose install failed"
                 '''
             }
         }
 
-        stage('Install Python 3.9 and podman-compose') {
+    /*    stage('Install Python 3.9 and podman-compose') {
             steps {
                 sh '''
                     echo "Checking Python version..."
@@ -102,7 +88,7 @@ pipeline {
                     podman-compose --version
                 '''
             }
-        } 
+        } */
 
 
         stage('Build Frontend Image') {
