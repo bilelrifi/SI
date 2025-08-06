@@ -39,7 +39,7 @@ pipeline {
         stage('Install podman-compose') {
             steps {
                 sh '''
-                    eecho "Installing podman-compose with Python 3.9..."
+                    echo "Installing podman-compose with Python 3.9..."
 
             # Try to find Python 3.9 binary
             PY39_BIN=$(command -v python3.9 || true)
