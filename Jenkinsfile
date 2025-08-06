@@ -41,7 +41,7 @@ pipeline {
                 sh '''
                     echo "Installing podman-compose with Python 3.9..."
 
-            PY39_BIN=/home/bilel/Python-3.9.18/python
+            PY39_BIN=/opt/python3.9/bin/python3.9
             export PATH=$HOME/.local/bin:$PATH
 
             # Install pip if it's missing
