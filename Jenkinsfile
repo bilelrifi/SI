@@ -36,9 +36,74 @@ pipeline {
             }
         }
 
-        stage('Install podman-compose') {
+        stage('Install podman and podman-compose') {
             steps {
                 sh '''
+                    echo 'Checking for podman installation...'
+                    
+                    # Check if podman is already installed
+                    if command -v podman &> /dev/null; then
+                        echo "Podman is already installed:"
+                        podman --version
+                    else
+                        echo "Installing podman..."
+                        
+                        # Detect OS and install podman accordingly
+                        if [ -f /etc/os-release ]; then
+                            . /etc/os-release
+                            echo "Detected OS: $NAME $VERSION"
+                            
+                            case "$ID" in
+                                "rhel"|"centos"|"rocky"|"almalinux")
+                                    echo "Installing podman on RHEL/CentOS-based system..."
+                                    if command -v dnf &> /dev/null; then
+                                        sudo dnf install -y podman
+                                    else
+                                        sudo yum install -y podman
+                                    fi
+                                    ;;
+                                "fedora")
+                                    echo "Installing podman on Fedora..."
+                                    sudo dnf install -y podman
+                                    ;;
+                                "ubuntu"|"debian")
+                                    echo "Installing podman on Ubuntu/Debian..."
+                                    sudo apt-get update
+                                    sudo apt-get install -y podman
+                                    ;;
+                                *)
+                                    echo "Attempting generic installation..."
+                                    if command -v dnf &> /dev/null; then
+                                        sudo dnf install -y podman
+                                    elif command -v yum &> /dev/null; then
+                                        sudo yum install -y podman
+                                    elif command -v apt-get &> /dev/null; then
+                                        sudo apt-get update && sudo apt-get install -y podman
+                                    else
+                                        echo "ERROR: Unable to install podman automatically"
+                                        echo "Please install podman manually on the Jenkins agent"
+                                        exit 1
+                                    fi
+                                    ;;
+                            esac
+                        else
+                            echo "Cannot detect OS. Attempting generic installation..."
+                            if command -v dnf &> /dev/null; then
+                                sudo dnf install -y podman
+                            elif command -v yum &> /dev/null; then
+                                sudo yum install -y podman
+                            elif command -v apt-get &> /dev/null; then
+                                sudo apt-get update && sudo apt-get install -y podman
+                            else
+                                echo "ERROR: Unable to install podman automatically"
+                                exit 1
+                            fi
+                        fi
+                        
+                        echo "Podman installation complete:"
+                        podman --version
+                    fi
+                    
                     echo 'Installing compatible podman-compose with Python 3.6...'
 
                     # Find a Python 3 executable
@@ -62,28 +127,36 @@ pipeline {
                     
                     # Verify installation
                     export PATH=$HOME/.local/bin:$PATH
-                    podman-compose --version || ~/.local/bin/podman-compose --version
+                    echo "Podman version:"
+                    podman --version
+                    echo "Podman-compose version:"
+                    podman-compose --version
                 '''
             }
         }
 
         stage('Build Frontend Image') {
             steps {
-                sh """
+                sh '''
                     echo "Building frontend image using podman-compose..."
-                    export PATH=\$HOME/.local/bin:\$PATH
-                    podman-compose -f ${PODMAN_COMPOSE_FILE} build frontend
-                """
+                    export PATH=$HOME/.local/bin:$PATH
+                    echo "Current directory: $(pwd)"
+                    echo "Checking if podman-compose.yml exists..."
+                    ls -la podman-compose.yml
+                    echo "Running podman-compose build frontend..."
+                    podman-compose -f podman-compose.yml build frontend
+                '''
             }
         }
 
         stage('Build Backend Image') {
             steps {
-                sh """
+                sh '''
                     echo "Building backend image using podman-compose..."
-                    export PATH=\$HOME/.local/bin:\$PATH
-                    podman-compose -f ${PODMAN_COMPOSE_FILE} build backend
-                """
+                    export PATH=$HOME/.local/bin:$PATH
+                    echo "Running podman-compose build backend..."
+                    podman-compose -f podman-compose.yml build backend
+                '''
             }
         }
 
@@ -99,6 +172,7 @@ pipeline {
             steps {
                 withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIALS}", passwordVariable: 'QUAY_PASS', usernameVariable: 'QUAY_USER')]) {
                     sh """
+                        export PATH=\$HOME/.local/bin:\$PATH
                         echo "Logging into Quay.io..."
                         podman login quay.io -u $QUAY_USER -p $QUAY_PASS
                         echo "Pushing frontend image to Quay.io..."
