@@ -39,7 +39,7 @@ pipeline {
         stage('Install podman-compose') {
             steps {
                 sh '''
-                    echo 'Installing podman-compose with Python 3...'
+                    echo 'Installing compatible podman-compose with Python 3.6...'
 
                     # Find a Python 3 executable
                     PYTHON_BIN=$(command -v python3 || true)
@@ -53,62 +53,42 @@ pipeline {
                     echo "Using Python binary: $PYTHON_BIN"
                     $PYTHON_BIN --version
 
-                    # Upgrade pip and install podman-compose locally
+                    # Upgrade pip and install compatible version of podman-compose
                     $PYTHON_BIN -m pip install --upgrade --user pip
-                    $PYTHON_BIN -m pip install --user podman-compose
+                    # Install version 1.0.6 which is compatible with Python 3.6
+                    $PYTHON_BIN -m pip install --user "podman-compose==1.0.6"
 
                     echo "podman-compose installation complete."
+                    
+                    # Verify installation
+                    export PATH=$HOME/.local/bin:$PATH
+                    podman-compose --version || ~/.local/bin/podman-compose --version
                 '''
             }
         }
 
-    /*    stage('Install Python 3.9 and podman-compose') {
-            steps {
-                sh '''
-                    echo "Checking Python version..."
-                    PYTHON_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
-
-                    if [ "$PYTHON_VERSION" != "3.9" ] && [ "$PYTHON_VERSION" != "3.10" ] && [ "$PYTHON_VERSION" != "3.11" ]; then
-                        echo "Upgrading to Python 3.9..."
-                        if command -v apt-get &> /dev/null; then
-                            sudo apt-get update
-                            sudo apt-get install -y software-properties-common
-                            sudo add-apt-repository -y ppa:deadsnakes/ppa
-                            sudo apt-get update
-                            sudo apt-get install -y python3.9 python3.9-distutils python3.9-venv
-                            sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 1
-                            curl -sS https://bootstrap.pypa.io/get-pip.py | sudo python3.9
-                        else
-                            echo "Unsupported OS for automated Python upgrade. Install Python 3.9+ manually."
-                            exit 1
-                        fi
-                    fi
-
-                    echo "Installing podman-compose..."
-                    pip3 install --user --upgrade podman-compose
-
-                    export PATH=$HOME/.local/bin:$PATH
-                    podman-compose --version
-                '''
-            }
-        } */
-
-
         stage('Build Frontend Image') {
             steps {
-                sh """
+                sh '''
                     echo "Building frontend image using podman-compose..."
-                    podman-compose -f ${PODMAN_COMPOSE_FILE} build frontend
-                """
+                    export PATH=$HOME/.local/bin:$PATH
+                    echo "Current directory: $(pwd)"
+                    echo "Checking if podman-compose.yml exists..."
+                    ls -la podman-compose.yml
+                    echo "Running podman-compose build frontend..."
+                    podman-compose -f podman-compose.yml build frontend
+                '''
             }
         }
 
         stage('Build Backend Image') {
             steps {
-                sh """
+                sh '''
                     echo "Building backend image using podman-compose..."
-                    podman-compose -f ${PODMAN_COMPOSE_FILE} build backend
-                """
+                    export PATH=$HOME/.local/bin:$PATH
+                    echo "Running podman-compose build backend..."
+                    podman-compose -f podman-compose.yml build backend
+                '''
             }
         }
 
