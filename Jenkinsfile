@@ -1,3 +1,4 @@
+#pipeline where podman compose get installed "33" 
 pipeline {
     agent any
 
@@ -36,127 +37,84 @@ pipeline {
             }
         }
 
-        stage('Install podman and podman-compose') {
+        stage('Install podman-compose') {
             steps {
                 sh '''
-                    echo 'Checking for podman installation...'
-                    
-                    # Check if podman is already installed
-                    if command -v podman &> /dev/null; then
-                        echo "Podman is already installed:"
-                        podman --version
+                    echo "Trying to install podman and pip with yum..."
+
+                    # Try to install podman and pip using yum (for RHEL/CentOS 7)
+                    if command -v yum > /dev/null; then
+                        sudo yum install -y epel-release || true
+                        sudo yum install -y podman python3-pip
                     else
-                        echo "Installing podman..."
-                        
-                        # Detect OS and install podman accordingly
-                        if [ -f /etc/os-release ]; then
-                            . /etc/os-release
-                            echo "Detected OS: $NAME $VERSION"
-                            
-                            case "$ID" in
-                                "rhel"|"centos"|"rocky"|"almalinux")
-                                    echo "Installing podman on RHEL/CentOS-based system..."
-                                    if command -v dnf &> /dev/null; then
-                                        sudo dnf install -y podman
-                                    else
-                                        sudo yum install -y podman
-                                    fi
-                                    ;;
-                                "fedora")
-                                    echo "Installing podman on Fedora..."
-                                    sudo dnf install -y podman
-                                    ;;
-                                "ubuntu"|"debian")
-                                    echo "Installing podman on Ubuntu/Debian..."
-                                    sudo apt-get update
-                                    sudo apt-get install -y podman
-                                    ;;
-                                *)
-                                    echo "Attempting generic installation..."
-                                    if command -v dnf &> /dev/null; then
-                                        sudo dnf install -y podman
-                                    elif command -v yum &> /dev/null; then
-                                        sudo yum install -y podman
-                                    elif command -v apt-get &> /dev/null; then
-                                        sudo apt-get update && sudo apt-get install -y podman
-                                    else
-                                        echo "ERROR: Unable to install podman automatically"
-                                        echo "Please install podman manually on the Jenkins agent"
-                                        exit 1
-                                    fi
-                                    ;;
-                            esac
+                        echo "yum not found. Falling back to apt or dnf..."
+                        if command -v dnf > /dev/null; then
+                            sudo dnf install -y podman python3-pip
+                        elif command -v apt-get > /dev/null; then
+                            sudo apt-get update
+                            sudo apt-get install -y podman python3-pip
                         else
-                            echo "Cannot detect OS. Attempting generic installation..."
-                            if command -v dnf &> /dev/null; then
-                                sudo dnf install -y podman
-                            elif command -v yum &> /dev/null; then
-                                sudo yum install -y podman
-                            elif command -v apt-get &> /dev/null; then
-                                sudo apt-get update && sudo apt-get install -y podman
-                            else
-                                echo "ERROR: Unable to install podman automatically"
-                                exit 1
-                            fi
+                            echo "No supported package manager found."
+                            exit 1
                         fi
-                        
-                        echo "Podman installation complete:"
-                        podman --version
-                    fi
-                    
-                    echo 'Installing compatible podman-compose with Python 3.6...'
-
-                    # Find a Python 3 executable
-                    PYTHON_BIN=$(command -v python3 || true)
-
-                    if [ -z "$PYTHON_BIN" ]; then
-                        echo "ERROR: Python 3 binary not found in PATH."
-                        echo "Please install Python 3 or add it to the system PATH."
-                        exit 1
                     fi
 
-                    echo "Using Python binary: $PYTHON_BIN"
-                    $PYTHON_BIN --version
-
-                    # Upgrade pip and install compatible version of podman-compose
-                    $PYTHON_BIN -m pip install --upgrade --user pip
-                    # Install version 1.0.6 which is compatible with Python 3.6
-                    $PYTHON_BIN -m pip install --user "podman-compose==1.0.6"
+                    echo "Installing podman-compose via pip..."
+                    pip3 install --user --upgrade pip
+                    pip3 install --user podman-compose
 
                     echo "podman-compose installation complete."
-                    
-                    # Verify installation
-                    export PATH=$HOME/.local/bin:$PATH
-                    echo "Podman version:"
-                    podman --version
-                    echo "Podman-compose version:"
-                    podman-compose --version
                 '''
             }
         }
 
-        stage('Build Frontend Image') {
+    /*    stage('Install Python 3.9 and podman-compose') {
             steps {
                 sh '''
-                    echo "Building frontend image using podman-compose..."
+                    echo "Checking Python version..."
+                    PYTHON_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
+
+                    if [ "$PYTHON_VERSION" != "3.9" ] && [ "$PYTHON_VERSION" != "3.10" ] && [ "$PYTHON_VERSION" != "3.11" ]; then
+                        echo "Upgrading to Python 3.9..."
+                        if command -v apt-get &> /dev/null; then
+                            sudo apt-get update
+                            sudo apt-get install -y software-properties-common
+                            sudo add-apt-repository -y ppa:deadsnakes/ppa
+                            sudo apt-get update
+                            sudo apt-get install -y python3.9 python3.9-distutils python3.9-venv
+                            sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 1
+                            curl -sS https://bootstrap.pypa.io/get-pip.py | sudo python3.9
+                        else
+                            echo "Unsupported OS for automated Python upgrade. Install Python 3.9+ manually."
+                            exit 1
+                        fi
+                    fi
+
+                    echo "Installing podman-compose..."
+                    pip3 install --user --upgrade podman-compose
+
                     export PATH=$HOME/.local/bin:$PATH
-                    echo "Current directory: $(pwd)"
-                    echo "Checking if podman-compose.yml exists..."
-                    ls -la podman-compose.yml
-                    echo "Running podman-compose build frontend..."
-                    podman-compose -f podman-compose.yml build frontend
+                    podman-compose --version
                 '''
+            }
+        } */
+
+
+        stage('Build Frontend Image') {
+            steps {
+                sh """
+                    echo "Building frontend image using podman-compose..."
+                    podman-compose -f ${PODMAN_COMPOSE_FILE} build frontend
+                """
             }
         }
 
         stage('Build Backend Image') {
             steps {
-                sh '''
+                sh """
                     echo "Building backend image using podman-compose..."
-                    export PATH=$HOME/.local/bin:$PATH
-                    echo "Running podman-compose build backend..."
-                    podman-compose -f podman-compose.yml build backend
-                '''
+                    podman-compose -f ${PODMAN_COMPOSE_FILE} build backend
+                """
             }
         }
 
@@ -172,7 +130,6 @@ pipeline {
             steps {
                 withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIALS}", passwordVariable: 'QUAY_PASS', usernameVariable: 'QUAY_USER')]) {
                     sh """
-                        export PATH=\$HOME/.local/bin:\$PATH
                         echo "Logging into Quay.io..."
                         podman login quay.io -u $QUAY_USER -p $QUAY_PASS
                         echo "Pushing frontend image to Quay.io..."
