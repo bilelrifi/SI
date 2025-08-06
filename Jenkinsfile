@@ -69,26 +69,21 @@ pipeline {
 
         stage('Build Frontend Image') {
             steps {
-                sh '''
+                sh """
                     echo "Building frontend image using podman-compose..."
-                    export PATH=$HOME/.local/bin:$PATH
-                    echo "Current directory: $(pwd)"
-                    echo "Checking if podman-compose.yml exists..."
-                    ls -la podman-compose.yml
-                    echo "Running podman-compose build frontend..."
-                    podman-compose -f podman-compose.yml build frontend
-                '''
+                    export PATH=\$HOME/.local/bin:\$PATH
+                    podman-compose -f ${PODMAN_COMPOSE_FILE} build frontend
+                """
             }
         }
 
         stage('Build Backend Image') {
             steps {
-                sh '''
+                sh """
                     echo "Building backend image using podman-compose..."
-                    export PATH=$HOME/.local/bin:$PATH
-                    echo "Running podman-compose build backend..."
-                    podman-compose -f podman-compose.yml build backend
-                '''
+                    export PATH=\$HOME/.local/bin:\$PATH
+                    podman-compose -f ${PODMAN_COMPOSE_FILE} build backend
+                """
             }
         }
 
