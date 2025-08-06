@@ -36,6 +36,44 @@ pipeline {
             }
         }
 
+        stage('Install podman-compose') {
+            steps {
+                sh '''
+                    echo "Installing podman-compose..."
+
+                    # Check if podman-compose exists
+                    if ! command -v podman-compose &> /dev/null; then
+                        # Install pip and podman-compose
+                        echo "podman-compose not found, installing..."
+                
+                        # Try installing pip (if missing)
+                        if ! command -v pip3 &> /dev/null; then
+                            echo "pip3 not found, attempting to install..."
+                            if command -v apt-get &> /dev/null; then
+                                sudo apt-get update && sudo apt-get install -y python3-pip
+                            elif command -v dnf &> /dev/null; then
+                                sudo dnf install -y python3-pip
+                            elif command -v yum &> /dev/null; then
+                                sudo yum install -y python3-pip
+                            else
+                                echo "Unsupported package manager. Cannot install pip."
+                                exit 1
+                            fi
+                        fi
+
+                        # Install podman-compose
+                        pip3 install --user podman-compose
+                        export PATH="$HOME/.local/bin:$PATH"
+                    else
+                        echo "podman-compose already installed."
+                    fi
+
+                    podman-compose --version || echo "podman-compose install failed"
+                '''
+            }
+        } 
+
+
         stage('Build Frontend Image') {
             steps {
                 sh """
