@@ -36,70 +36,25 @@ pipeline {
             }
         }
 
-        stage('Install podman-compose') {
+        stage('Setup podman-compose with Python 3.11') {
             steps {
                 sh '''
-                    echo "Installing podman-compose..."
+                    echo "Setting up environment..."
 
-                    # Check if podman-compose exists
-                    if ! command -v podman-compose &> /dev/null; then
-                        # Install pip and podman-compose
-                        echo "podman-compose not found, installing..."
-                
-                        # Try installing pip (if missing)
-                        if ! command -v pip3 &> /dev/null; then
-                            echo "pip3 not found, attempting to install..."
-                            if command -v apt-get &> /dev/null; then
-                                sudo apt-get update && sudo apt-get install -y python3-pip
-                            elif command -v dnf &> /dev/null; then
-                                sudo dnf install -y python3-pip
-                            elif command -v yum &> /dev/null; then
-                                sudo yum install -y python3-pip
-                            else
-                                echo "Unsupported package manager. Cannot install pip."
-                                exit 1
-                            fi
-                        fi
-
-                        # Install podman-compose
-                        pip3 install --user podman-compose
-                        export PATH="$HOME/.local/bin:$PATH"
-                    else
-                        echo "podman-compose already installed."
-                    fi
-
-                    podman-compose --version || echo "podman-compose install failed"
-                '''
-            }
-        }
-
-        stage('Install Python 3.9 and podman-compose') {
-            steps {
-                sh '''
-                    echo "Checking Python version..."
-                    PYTHON_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
-
-                    if [ "$PYTHON_VERSION" != "3.9" ] && [ "$PYTHON_VERSION" != "3.10" ] && [ "$PYTHON_VERSION" != "3.11" ]; then
-                        echo "Upgrading to Python 3.9..."
-                        if command -v apt-get &> /dev/null; then
-                            sudo apt-get update
-                            sudo apt-get install -y software-properties-common
-                            sudo add-apt-repository -y ppa:deadsnakes/ppa
-                            sudo apt-get update
-                            sudo apt-get install -y python3.9 python3.9-distutils python3.9-venv
-                            sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 1
-                            curl -sS https://bootstrap.pypa.io/get-pip.py | sudo python3.9
-                        else
-                            echo "Unsupported OS for automated Python upgrade. Install Python 3.9+ manually."
-                            exit 1
-                        fi
-                    fi
-
-                    echo "Installing podman-compose..."
-                    pip3 install --user --upgrade podman-compose
-
+                    # Ensure local bin is in PATH
                     export PATH=$HOME/.local/bin:$PATH
-                    podman-compose --version
+
+                    echo "Using Python version:"
+                    python3.11 --version
+
+                    echo "Installing podman-compose with pip3.11..."
+                    python3.11 -m pip install --user --upgrade podman-compose
+
+                    echo "Verifying podman-compose installation..."
+                    podman-compose --version || {
+                        echo "podman-compose failed to install or run."
+                        exit 1
+                    }
                 '''
             }
         }
