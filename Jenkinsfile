@@ -40,30 +40,30 @@ pipeline {
         stage('Install podman-compose') {
             steps {
                 sh '''
-                    echo "Trying to install podman and pip with yum..."
-
-                    # Try to install podman and pip using yum (for RHEL/CentOS 7)
-                    if command -v yum > /dev/null; then
-                        sudo yum install -y epel-release || true
-                        sudo yum install -y podman python3-pip
+                        # Use Python 3.9 if available
+                    if command -v python3.9 > /dev/null; then
+                        PYTHON=python3.9
+                    elif command -v python3.10 > /dev/null; then
+                        PYTHON=python3.10
                     else
-                        echo "yum not found. Falling back to apt or dnf..."
-                        if command -v dnf > /dev/null; then
-                            sudo dnf install -y podman python3-pip
-                        elif command -v apt-get > /dev/null; then
-                            sudo apt-get update
-                            sudo apt-get install -y podman python3-pip
-                        else
-                            echo "No supported package manager found."
-                            exit 1
-                        fi
+                        echo " Python 3.9+ not found. Install it first."
+                        exit 1
                     fi
 
-                    echo "Installing podman-compose via pip..."
-                    pip3 install --user --upgrade pip
-                    pip3 install --user podman-compose
+                    echo "Found Python: $PYTHON"
 
-                    echo "podman-compose installation complete."
+                    # Install pip and podman-compose using Python 3.9+
+                    $PYTHON -m ensurepip --upgrade || true
+                    $PYTHON -m pip install --upgrade --user pip
+                    $PYTHON -m pip install --user podman-compose
+
+                    # Find full path of podman-compose and make sure it uses the right Python
+                    BIN_PATH=$(dirname "$($PYTHON -m site --user-base)")/bin
+                    echo " podman-compose should now be in: $BIN_PATH"
+
+                    # Print shebang to confirm it's using the right Python
+                    head -n 1 $BIN_PATH/podman-compose || true
+                    $BIN_PATH/podman-compose --version || true
                 '''
             }
         }
