@@ -50,14 +50,14 @@ pipeline {
                 script {
                     sh '''
                         # Create BuildConfig if it doesn't exist
-                        if ! oc get bc job-portal-frontend; then
+                        if ! oc get bc job-portal-frontend-p; then
                             echo "Creating BuildConfig for frontend..."
-                            oc new-build --name=job-portal-frontend --binary=true --strategy=docker
+                            oc new-build --name=job-portal-frontend-p --binary=true --strategy=docker
                         fi
                         
                         # Start build from local directory
                         echo "Building frontend image..."
-                        oc start-build job-portal-frontend --from-dir=frontend --follow --wait
+                        oc start-build job-portal-frontend-p --from-dir=frontend --follow --wait
                     '''
                 }
             }
@@ -68,14 +68,14 @@ pipeline {
                 script {
                     sh '''
                         # Create BuildConfig if it doesn't exist
-                        if ! oc get bc job-portal-backend; then
+                        if ! oc get bc job-portal-backend-p; then
                             echo "Creating BuildConfig for backend..."
-                            oc new-build --name=job-portal-backend --binary=true --strategy=docker
+                            oc new-build --name=job-portal-backend-p --binary=true --strategy=docker
                         fi
                         
                         # Start build from local directory
                         echo "Building backend image..."
-                        oc start-build job-portal-backend --from-dir=backend --follow --wait
+                        oc start-build job-portal-backend-p --from-dir=backend --follow --wait
                     '''
                 }
             }
@@ -168,7 +168,7 @@ pipeline {
             script {
                 sh '''
                     echo "Pipeline completed"
-                    oc get pods -l openshift.io/build.name | grep -E "(job-portal-frontend|job-portal-backend)" || true
+                    oc get pods -l openshift.io/build.name | grep -E "(job-portal-frontend-p|job-portal-backend-p)" || true
                 '''
             }
         }
