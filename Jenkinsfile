@@ -39,14 +39,23 @@ pipeline {
         stage('Install podman-compose') {
             steps {
                 sh '''
-                    echo 'Installing podman-compose with Python 3.9...'
-            PY39_BIN=$(command -v python3.9 || echo "/opt/python3.9/bin/python3.9")
-            if [ ! -x "$PY39_BIN" ]; then
-              echo "Python 3.9 not found at $PY39_BIN"
+                    eecho "Installing podman-compose with Python 3.9..."
+
+            # Try to find Python 3.9 binary
+            PY39_BIN=$(command -v python3.9 || true)
+
+            if [ -z "$PY39_BIN" ] || [ ! -x "$PY39_BIN" ]; then
+              echo "ERROR: Python 3.9 binary not found in PATH."
+              echo "Try adding it to PATH or check installation at /opt or /usr/local"
               exit 1
             fi
+
+            echo "Using Python binary: $PY39_BIN"
             curl -sS https://bootstrap.pypa.io/get-pip.py -o get-pip.py
             $PY39_BIN get-pip.py
+
+            # Make sure pip is accessible
+            export PATH=$HOME/.local/bin:$PATH
             pip3.9 install --user podman-compose
                 '''
             }
