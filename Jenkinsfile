@@ -31,34 +31,24 @@ pipeline {
 
         stage('Login to OpenShift') {
             steps {
-                // Option 1: Using Token (recommended)
                 withCredentials([string(credentialsId: 'oc-token-id', variable: 'OC_TOKEN')]) {
-                    sh """
+                    sh '''
                         echo "Logging into OpenShift with token..."
-                        oc login --token=\$OC_TOKEN --server=${OPENSHIFT_SERVER} --insecure-skip-tls-verify
-                        oc project ${PROJECT_NAME}
-                        echo "Successfully logged in and switched to project: ${PROJECT_NAME}"
-                    """
+                        echo "Token length: ${#OC_TOKEN}"
+                        oc login --token=$OC_TOKEN --server=https://api.ocp.smartek.ae:6443 --insecure-skip-tls-verify
+                        oc project gamma
+                        echo "Successfully logged in and switched to project: gamma"
+                        oc whoami
+                        oc project
+                    '''
                 }
-                
-                // Option 2: Using Username/Password (uncomment if you prefer this)
-                /*
-                withCredentials([usernamePassword(credentialsId: 'oc-user-pass', passwordVariable: 'OC_PASS', usernameVariable: 'OC_USER')]) {
-                    sh """
-                        echo "Logging into OpenShift with username/password..."
-                        oc login --username=\$OC_USER --password=\$OC_PASS --server=${OPENSHIFT_SERVER} --insecure-skip-tls-verify
-                        oc project ${PROJECT_NAME}
-                        echo "Successfully logged in and switched to project: ${PROJECT_NAME}"
-                    """
-                }
-                */
             }
         }
 
         stage('Build Frontend Image') {
             steps {
                 script {
-                    sh """
+                    sh '''
                         # Create BuildConfig if it doesn't exist
                         if ! oc get bc job-portal-frontend; then
                             echo "Creating BuildConfig for frontend..."
@@ -67,8 +57,8 @@ pipeline {
                         
                         # Start build from local directory
                         echo "Building frontend image..."
-                        oc start-build job-portal-frontend --from-dir=${FRONTEND_CONTEXT} --follow --wait
-                    """
+                        oc start-build job-portal-frontend --from-dir=frontend --follow --wait
+                    '''
                 }
             }
         }
@@ -76,7 +66,7 @@ pipeline {
         stage('Build Backend Image') {
             steps {
                 script {
-                    sh """
+                    sh '''
                         # Create BuildConfig if it doesn't exist
                         if ! oc get bc job-portal-backend; then
                             echo "Creating BuildConfig for backend..."
@@ -85,19 +75,19 @@ pipeline {
                         
                         # Start build from local directory
                         echo "Building backend image..."
-                        oc start-build job-portal-backend --from-dir=${BACKEND_CONTEXT} --follow --wait
-                    """
+                        oc start-build job-portal-backend --from-dir=backend --follow --wait
+                    '''
                 }
             }
         }
 
         stage('Tag Images') {
             steps {
-                sh """
+                sh '''
                     # Tag the built images
-                    oc tag ${PROJECT_NAME}/job-portal-frontend:latest ${PROJECT_NAME}/job-portal-frontend:${FRONTEND_IMAGE_TAG}
-                    oc tag ${PROJECT_NAME}/job-portal-backend:latest ${PROJECT_NAME}/job-portal-backend:${BACKEND_IMAGE_TAG}
-                """
+                    oc tag gamma/job-portal-frontend:latest gamma/job-portal-frontend:latest
+                    oc tag gamma/job-portal-backend:latest gamma/job-portal-backend:latest
+                '''
             }
         }
 
@@ -106,15 +96,15 @@ pipeline {
                 expression { params.PUSH_TO_QUAY == true }
             }
             steps {
-                withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIALS}", passwordVariable: 'QUAY_ROBOT_TOKEN', usernameVariable: 'QUAY_ROBOT_USER')]) {
-                    sh """
-                        echo "Pushing images to Quay.io using robot account: \$QUAY_ROBOT_USER"
+                withCredentials([usernamePassword(credentialsId: 'ce45edfb-ce9a-42be-aa16-afea0bdc5dfc', passwordVariable: 'QUAY_ROBOT_TOKEN', usernameVariable: 'QUAY_ROBOT_USER')]) {
+                    sh '''
+                        echo "Pushing images to Quay.io using robot account: $QUAY_ROBOT_USER"
                         
                         # Create a secret for Quay.io authentication
                         oc create secret docker-registry quay-robot-secret \
                             --docker-server=quay.io \
-                            --docker-username=\$QUAY_ROBOT_USER \
-                            --docker-password=\$QUAY_ROBOT_TOKEN \
+                            --docker-username=$QUAY_ROBOT_USER \
+                            --docker-password=$QUAY_ROBOT_TOKEN \
                             --dry-run=client -o yaml | oc apply -f -
                         
                         # Create temporary docker config for image mirroring
@@ -123,39 +113,39 @@ pipeline {
                         
                         # Mirror images to Quay.io
                         oc image mirror \
-                            ${PROJECT_NAME}/job-portal-frontend:${FRONTEND_IMAGE_TAG} \
-                            ${EXTERNAL_REGISTRY}/job-portal-frontend:${FRONTEND_IMAGE_TAG} \
+                            gamma/job-portal-frontend:latest \
+                            quay.io/bilelrifi/job-portal-frontend:latest \
                             --registry-config=/tmp/docker-config/.dockerconfigjson
                         
                         oc image mirror \
-                            ${PROJECT_NAME}/job-portal-backend:${BACKEND_IMAGE_TAG} \
-                            ${EXTERNAL_REGISTRY}/job-portal-backend:${BACKEND_IMAGE_TAG} \
+                            gamma/job-portal-backend:latest \
+                            quay.io/bilelrifi/job-portal-backend:latest \
                             --registry-config=/tmp/docker-config/.dockerconfigjson
                         
                         # Clean up temporary files
                         rm -rf /tmp/docker-config
                         
                         echo "✅ Images successfully pushed to Quay.io:"
-                        echo "   Frontend: ${EXTERNAL_REGISTRY}/job-portal-frontend:${FRONTEND_IMAGE_TAG}"
-                        echo "   Backend: ${EXTERNAL_REGISTRY}/job-portal-backend:${BACKEND_IMAGE_TAG}"
-                    """
+                        echo "   Frontend: quay.io/bilelrifi/job-portal-frontend:latest"
+                        echo "   Backend: quay.io/bilelrifi/job-portal-backend:latest"
+                    '''
                 }
             }
         }
 
         stage('Deploy Applications') {
             steps {
-                sh """
+                sh '''
                     # Clean existing deployments (ignore errors)
                     oc delete all -l app=job-frontend || true
                     oc delete all -l app=job-backend || true
                     
                     # Deploy frontend using the built image
-                    oc new-app job-portal-frontend:${FRONTEND_IMAGE_TAG} --name=job-frontend
+                    oc new-app job-portal-frontend:latest --name=job-frontend
                     oc expose svc/job-frontend
                     
                     # Deploy backend using the built image
-                    oc new-app job-portal-backend:${BACKEND_IMAGE_TAG} --name=job-backend
+                    oc new-app job-portal-backend:latest --name=job-backend
                     oc expose svc/job-backend
                     
                     # Wait for deployments to be ready
@@ -168,7 +158,7 @@ pipeline {
                     echo ""
                     echo "Backend Route:"
                     oc get route job-backend --template='{{ .spec.host }}'
-                """
+                '''
             }
         }
     }
@@ -176,11 +166,10 @@ pipeline {
     post {
         always {
             script {
-                // Clean up build artifacts if needed
-                sh """
+                sh '''
                     echo "Pipeline completed"
                     oc get pods -l openshift.io/build.name | grep -E "(job-portal-frontend|job-portal-backend)" || true
-                """
+                '''
             }
         }
         success {
