@@ -1,4 +1,3 @@
-#pipeline where podman compose get installed "33" 
 pipeline {
     agent any
 
