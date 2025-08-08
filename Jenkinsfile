@@ -1,9 +1,6 @@
 podTemplate(containers: [
-    containerTemplate(name: 'podman', image: 'vniks/podman-agent:v1', command: 'cat', privileged: true, user: 'root', ttyEnabled: true),
+    containerTemplate(name: 'podman', image: 'quay.io/podman/stable:latest', command: 'cat', ttyEnabled: true),
     containerTemplate(name: 'kubectl', image: 'lachlanevenson/k8s-kubectl:latest', command: 'cat', ttyEnabled: true)
-  ],
-  volumes: [
-    hostPathVolume(mountPath: '/run/podman/podman.sock', hostPath: '/run/podman/podman.sock')
   ]) {
 
     node(POD_LABEL) {
@@ -17,7 +14,10 @@ podTemplate(containers: [
 
         stage('Clone Repository') {
             steps {
-                checkout scm
+                checkout scmGit(
+                    branches: [[name: '*/main']],
+                    userRemoteConfigs: [[url: 'https://github.com/bilelrifi/SI.git']]
+                )
             }
         }
 
