@@ -1,4 +1,4 @@
-pipeline {
+pipeline { 
     agent any
 
     environment {
@@ -31,26 +31,20 @@ pipeline {
             }
         }
 
-        stage('Build Frontend Image with OpenShift') {
+        stage('Build Frontend Image with Buildah') {
             steps {
                 sh '''
-                    echo "Building frontend image using OpenShift BuildConfig..."
-                    if ! oc get bc frontend; then
-                        oc new-build --binary --name=frontend --strategy=docker
-                    fi
-                    oc start-build frontend --from-dir=frontend --wait --follow
+                    echo "Building frontend image locally with Buildah..."
+                    buildah bud -t ${FRONTEND_IMAGE} ./frontend
                 '''
             }
         }
 
-        stage('Build Backend Image with OpenShift') {
+        stage('Build Backend Image with Buildah') {
             steps {
                 sh '''
-                    echo "Building backend image using OpenShift BuildConfig..."
-                    if ! oc get bc backend; then
-                        oc new-build --binary --name=backend --strategy=docker
-                    fi
-                    oc start-build backend --from-dir=backend --wait --follow
+                    echo "Building backend image locally with Buildah..."
+                    buildah bud -t ${BACKEND_IMAGE} ./backend
                 '''
             }
         }
@@ -60,20 +54,13 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIALS}", passwordVariable: 'QUAY_PASS', usernameVariable: 'QUAY_USER')]) {
                     sh '''
                         echo "Logging into Quay.io..."
-                        oc registry login --to=/tmp/auth.json
-                        podman login quay.io -u $QUAY_USER -p $QUAY_PASS
+                        buildah login -u $QUAY_USER -p $QUAY_PASS quay.io
 
-                        echo "Tagging and pushing frontend..."
-                        FRONTEND_LOCAL=$(oc get is frontend -o jsonpath='{.status.tags[0].items[0].dockerImageReference}')
-                        podman pull $FRONTEND_LOCAL --authfile /tmp/auth.json
-                        podman tag $FRONTEND_LOCAL ${FRONTEND_IMAGE}
-                        podman push ${FRONTEND_IMAGE}
+                        echo "Pushing frontend image to Quay.io..."
+                        buildah push ${FRONTEND_IMAGE}
 
-                        echo "Tagging and pushing backend..."
-                        BACKEND_LOCAL=$(oc get is backend -o jsonpath='{.status.tags[0].items[0].dockerImageReference}')
-                        podman pull $BACKEND_LOCAL --authfile /tmp/auth.json
-                        podman tag $BACKEND_LOCAL ${BACKEND_IMAGE}
-                        podman push ${BACKEND_IMAGE}
+                        echo "Pushing backend image to Quay.io..."
+                        buildah push ${BACKEND_IMAGE}
                     '''
                 }
             }
