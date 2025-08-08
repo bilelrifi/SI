@@ -1,3 +1,4 @@
+#pipeline where podman compose get installed "33" 
 pipeline {
     agent any
 
@@ -39,30 +40,25 @@ pipeline {
         stage('Install podman-compose') {
             steps {
                 sh '''
-                        # Use Python 3.9 if available
-                    if command -v python3.9 > /dev/null; then
-                        PYTHON=python3.9
-                    elif command -v python3.10 > /dev/null; then
-                        PYTHON=python3.10
-                    else
-                        echo " Python 3.9+ not found. Install it first."
+                    echo 'Installing podman-compose with Python 3...'
+
+                    # Find a Python 3 executable
+                    PYTHON_BIN=$(command -v python3 || true)
+
+                    if [ -z "$PYTHON_BIN" ]; then
+                        echo "ERROR: Python 3 binary not found in PATH."
+                        echo "Please install Python 3 or add it to the system PATH."
                         exit 1
                     fi
 
-                    echo "Found Python: $PYTHON"
+                    echo "Using Python binary: $PYTHON_BIN"
+                    $PYTHON_BIN --version
 
-                    # Install pip and podman-compose using Python 3.9+
-                    $PYTHON -m ensurepip --upgrade || true
-                    $PYTHON -m pip install --upgrade --user pip
-                    $PYTHON -m pip install --user podman-compose
+                    # Upgrade pip and install podman-compose locally
+                    $PYTHON_BIN -m pip install --upgrade --user pip
+                    $PYTHON_BIN -m pip install --user podman-compose
 
-                    # Find full path of podman-compose and make sure it uses the right Python
-                    BIN_PATH=$(dirname "$($PYTHON -m site --user-base)")/bin
-                    echo " podman-compose should now be in: $BIN_PATH"
-
-                    # Print shebang to confirm it's using the right Python
-                    head -n 1 $BIN_PATH/podman-compose || true
-                    $BIN_PATH/podman-compose --version || true
+                    echo "podman-compose installation complete."
                 '''
             }
         }
