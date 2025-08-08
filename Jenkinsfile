@@ -23,16 +23,16 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIALS}", passwordVariable: 'QUAY_PASS', usernameVariable: 'QUAY_USER')]) {
                     sh '''
                         echo "Logging into Quay.io..."
-                        podman login quay.io -u $QUAY_USER -p $QUAY_PASS
+                        echo $QUAY_PASS | docker login quay.io -u $QUAY_USER --password-stdin
                         
                         echo "Building and pushing frontend image..."
                         cd frontend
-                        podman build -t ${FRONTEND_IMAGE} .
-                        podman push ${FRONTEND_IMAGE}
+                        docker build -t ${FRONTEND_IMAGE} .
+                        docker push ${FRONTEND_IMAGE}
                         
                         # Also tag as latest for convenience
-                        podman tag ${FRONTEND_IMAGE} quay.io/bilelrifi/job-portal-frontend:latest
-                        podman push quay.io/bilelrifi/job-portal-frontend:latest
+                        docker tag ${FRONTEND_IMAGE} quay.io/bilelrifi/job-portal-frontend:latest
+                        docker push quay.io/bilelrifi/job-portal-frontend:latest
                     '''
                 }
             }
@@ -44,12 +44,12 @@ pipeline {
                     sh '''
                         echo "Building and pushing backend image..."
                         cd backend
-                        podman build -t ${BACKEND_IMAGE} .
-                        podman push ${BACKEND_IMAGE}
+                        docker build -t ${BACKEND_IMAGE} .
+                        docker push ${BACKEND_IMAGE}
                         
                         # Also tag as latest for convenience
-                        podman tag ${BACKEND_IMAGE} quay.io/bilelrifi/job-portal-backend:latest
-                        podman push quay.io/bilelrifi/job-portal-backend:latest
+                        docker tag ${BACKEND_IMAGE} quay.io/bilelrifi/job-portal-backend:latest
+                        docker push quay.io/bilelrifi/job-portal-backend:latest
                     '''
                 }
             }
