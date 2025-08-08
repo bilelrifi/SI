@@ -36,6 +36,17 @@ pipeline {
             }
         }
 
+        stage('Install Podman') {
+            steps {
+                sh '''
+                    echo "Installing Podman..."
+                    yum -y install podman
+                    podman --version
+                '''
+            }
+        }
+
+
         stage('Install podman-compose') {
             steps {
                 sh '''
