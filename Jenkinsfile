@@ -1,8 +1,14 @@
 podTemplate(containers: [
     containerTemplate(name: 'podman', image: 'quay.io/podman/stable:latest', command: 'cat', ttyEnabled: true),
-    containerTemplate(name: 'kubectl', image: 'lachlanevenson/k8s-kubectl:latest', command: 'cat', ttyEnabled: true)
-  ]) {
-
+    containerTemplate(name: 'kubectl', image: 'lachlanevenson/k8s-kubectl:latest', command: 'cat', ttyEnabled: true),
+    containerTemplate(
+        name: 'jnlp',
+        image: 'jenkins/inbound-agent:3107.v665000b_51092-15',
+        envVars: [
+            envVar(key: 'HOME', value: '/home/jenkins')
+        ]
+    )
+]) {
     node(POD_LABEL) {
         environment {
             PROJECT_NAME = "gamma"
@@ -14,10 +20,7 @@ podTemplate(containers: [
 
         stage('Clone Repository') {
             steps {
-                checkout scmGit(
-                    branches: [[name: '*/main']],
-                    userRemoteConfigs: [[url: 'https://github.com/bilelrifi/SI.git']]
-                )
+                checkout scm
             }
         }
 
