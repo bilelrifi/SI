@@ -18,6 +18,23 @@ podTemplate(containers: [
             BACKEND_IMAGE = "quay.io/bilelrifi/job-portal-backend:p"
         }
 
+        stage('Diagnostics') {
+            steps {
+                sh '''
+                    echo "Jenkins Environment Diagnostics"
+                    echo "Jenkins Version: $(jenkins --version 2>/dev/null || echo 'jenkins command not found')"
+                    echo "Pipeline Plugin Versions:"
+                    echo "workflow-aggregator: $(cat /var/jenkins_home/plugins/workflow-aggregator/META-INF/MANIFEST.MF 2>/dev/null | grep Plugin-Version || echo 'Not found')"
+                    echo "workflow-cps: $(cat /var/jenkins_home/plugins/workflow-cps/META-INF/MANIFEST.MF 2>/dev/null | grep Plugin-Version || echo 'Not found')"
+                    echo "workflow-step-api: $(cat /var/jenkins_home/plugins/workflow-step-api/META-INF/MANIFEST.MF 2>/dev/null | grep Plugin-Version || echo 'Not found')"
+                    echo "git: $(cat /var/jenkins_home/plugins/git/META-INF/MANIFEST.MF 2>/dev/null | grep Plugin-Version || echo 'Not found')"
+                    echo "SCM Configuration:"
+                    echo "SCM: $SCM_URL"
+                    echo "Working Directory: $(pwd)"
+                '''
+            }
+        }
+
         stage('Clone Repository') {
             steps {
                 checkout scm
