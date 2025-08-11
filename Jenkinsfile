@@ -29,89 +29,59 @@ pipeline {
             }
         }
 
-        stage('Build Images with Docker/Podman') {
+        stage('Build Images on OpenShift') {
             parallel {
                 stage('Build Frontend Image') {
                     steps {
                         script {
                             withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIALS}", passwordVariable: 'QUAY_PASS', usernameVariable: 'QUAY_USER')]) {
                                 sh '''
-                                    echo "Building frontend image with Docker/Podman..."
+                                    echo "Building frontend image on OpenShift..."
                                     cd frontend
-                                    
-                                    # Check if we have Docker or Podman
-                                    if command -v podman &> /dev/null; then
-                                        BUILD_CMD="podman"
-                                    elif command -v docker &> /dev/null; then
-                                        BUILD_CMD="docker"
-                                    else
-                                        echo "Neither Docker nor Podman found, trying buildah..."
-                                        BUILD_CMD="buildah"
-                                    fi
-                                    
-                                    echo "Using build command: $BUILD_CMD"
-                                    
-                                    # Build the image
-                                    if [ "$BUILD_CMD" = "buildah" ]; then
-                                        buildah bud --tls-verify=false -f Containerfile -t ${FRONTEND_IMAGE} .
-                                    else
-                                        $BUILD_CMD build --no-cache -f Containerfile -t ${FRONTEND_IMAGE} .
-                                    fi
-                                    
-                                    # Login to registry
-                                    echo "Logging into Quay.io..."
-                                    if [ "$BUILD_CMD" = "buildah" ]; then
-                                        buildah login -u $QUAY_USER -p $QUAY_PASS quay.io --tls-verify=false
-                                        buildah push --tls-verify=false ${FRONTEND_IMAGE}
-                                    else
-                                        echo $QUAY_PASS | $BUILD_CMD login --username $QUAY_USER --password-stdin quay.io
-                                        $BUILD_CMD push ${FRONTEND_IMAGE}
-                                    fi
-                                    
+
+                                    # Delete any old build configs
+                                    oc delete bc job-portal-frontend --ignore-not-found=true
+                                    oc delete is job-portal-frontend --ignore-not-found=true
+
+                                    # Create new build config
+                                    oc new-build --name=job-portal-frontend --binary --strategy=docker
+
+                                    # Start the build from local directory
+                                    oc start-build job-portal-frontend --from-dir=. --follow
+
+                                    # Tag and push to Quay
+                                    echo "Tagging image to Quay..."
+                                    oc tag job-portal-frontend:latest ${FRONTEND_IMAGE}
+
                                     echo "Frontend image built and pushed successfully"
                                 '''
                             }
                         }
                     }
                 }
-                
+
                 stage('Build Backend Image') {
                     steps {
                         script {
                             withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIALS}", passwordVariable: 'QUAY_PASS', usernameVariable: 'QUAY_USER')]) {
                                 sh '''
-                                    echo "Building backend image with Docker/Podman..."
+                                    echo "Building backend image on OpenShift..."
                                     cd backend
-                                    
-                                    # Check if we have Docker or Podman
-                                    if command -v podman &> /dev/null; then
-                                        BUILD_CMD="podman"
-                                    elif command -v docker &> /dev/null; then
-                                        BUILD_CMD="docker"
-                                    else
-                                        echo "Neither Docker nor Podman found, trying buildah..."
-                                        BUILD_CMD="buildah"
-                                    fi
-                                    
-                                    echo "Using build command: $BUILD_CMD"
-                                    
-                                    # Build the image
-                                    if [ "$BUILD_CMD" = "buildah" ]; then
-                                        buildah bud --tls-verify=false -f Containerfile -t ${BACKEND_IMAGE} .
-                                    else
-                                        $BUILD_CMD build --no-cache -f Containerfile -t ${BACKEND_IMAGE} .
-                                    fi
-                                    
-                                    # Login to registry
-                                    echo "Logging into Quay.io..."
-                                    if [ "$BUILD_CMD" = "buildah" ]; then
-                                        buildah login -u $QUAY_USER -p $QUAY_PASS quay.io --tls-verify=false
-                                        buildah push --tls-verify=false ${BACKEND_IMAGE}
-                                    else
-                                        echo $QUAY_PASS | $BUILD_CMD login --username $QUAY_USER --password-stdin quay.io
-                                        $BUILD_CMD push ${BACKEND_IMAGE}
-                                    fi
-                                    
+
+                                    # Delete any old build configs
+                                    oc delete bc job-portal-backend --ignore-not-found=true
+                                    oc delete is job-portal-backend --ignore-not-found=true
+
+                                    # Create new build config
+                                    oc new-build --name=job-portal-backend --binary --strategy=docker
+
+                                    # Start the build from local directory
+                                    oc start-build job-portal-backend --from-dir=. --follow
+
+                                    # Tag and push to Quay
+                                    echo "Tagging image to Quay..."
+                                    oc tag job-portal-backend:latest ${BACKEND_IMAGE}
+
                                     echo "Backend image built and pushed successfully"
                                 '''
                             }
@@ -130,27 +100,26 @@ pipeline {
                         oc project ${PROJECT_NAME}
 
                         # Clean up existing deployments
-                        oc delete all -l app=job-frontend --insecure-skip-tls-verify || true
-                        oc delete all -l app=job-backend --insecure-skip-tls-verify || true
+                        oc delete all -l app=job-frontend --ignore-not-found=true
+                        oc delete all -l app=job-backend --ignore-not-found=true
                         
-                        # Wait a bit for cleanup
                         sleep 10
 
                         # Deploy frontend
                         echo "Deploying frontend..."
-                        oc new-app ${FRONTEND_IMAGE} --name=job-frontend --insecure-skip-tls-verify
-                        oc expose svc/job-frontend --insecure-skip-tls-verify
+                        oc new-app ${FRONTEND_IMAGE} --name=job-frontend
+                        oc expose svc/job-frontend
 
                         # Deploy backend
                         echo "Deploying backend..."
-                        oc new-app ${BACKEND_IMAGE} --name=job-backend --insecure-skip-tls-verify
-                        oc expose svc/job-backend --insecure-skip-tls-verify
+                        oc new-app ${BACKEND_IMAGE} --name=job-backend
+                        oc expose svc/job-backend
                         
                         # Show deployment status
                         echo "Deployment status:"
-                        oc get pods --insecure-skip-tls-verify
-                        oc get svc --insecure-skip-tls-verify
-                        oc get routes --insecure-skip-tls-verify
+                        oc get pods
+                        oc get svc
+                        oc get routes
                     '''
                 }
             }
@@ -158,18 +127,6 @@ pipeline {
     }
     
     post {
-        always {
-            script {
-                // Clean up local images if using Docker/Podman
-                sh '''
-                    if command -v podman &> /dev/null; then
-                        podman rmi ${FRONTEND_IMAGE} ${BACKEND_IMAGE} || true
-                    elif command -v docker &> /dev/null; then
-                        docker rmi ${FRONTEND_IMAGE} ${BACKEND_IMAGE} || true
-                    fi
-                '''
-            }
-        }
         success {
             echo 'Pipeline completed successfully!'
         }
