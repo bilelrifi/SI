@@ -18,7 +18,7 @@ podTemplate(containers: [
             BACKEND_IMAGE = "quay.io/bilelrifi/job-portal-backend:p"
         }
 
-        stage('Diagnostics') {
+        /*stage('Diagnostics') {
             steps {
                 sh '''
                     echo "Jenkins Environment Diagnostics"
@@ -33,7 +33,7 @@ podTemplate(containers: [
                     echo "Working Directory: $(pwd)"
                 '''
             }
-        }
+        }*/
 
         stage('Clone Repository') {
             steps {
