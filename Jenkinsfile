@@ -22,10 +22,10 @@ pipeline {
             steps {
                 withCredentials([string(credentialsId: 'oc-token-id', variable: 'OC_TOKEN')]) {
                     sh '''
-                        echo "Logging into OpenShift with token..."
+                        echo "Logging into OpenShift..."
                         oc login --token=$OC_TOKEN --server=${OPENSHIFT_SERVER} --insecure-skip-tls-verify
                         oc project ${PROJECT_NAME}
-                        echo "Successfully logged in to project: ${PROJECT_NAME}"
+                        echo "Logged into OpenShift project: ${PROJECT_NAME}"
                     '''
                 }
             }
@@ -34,12 +34,15 @@ pipeline {
         stage('Build Frontend Image with OpenShift') {
             steps {
                 sh '''
-                    echo "Building frontend image using OpenShift BuildConfig..."
-                    if ! oc get bc frontend --insecure-skip-tls-verify; then
+                    echo "Ensuring frontend BuildConfig exists..."
+                    if ! oc get bc frontend --insecure-skip-tls-verify >/dev/null 2>&1; then
                         oc new-build --binary --name=frontend --strategy=docker --insecure-skip-tls-verify
-                        oc patch bc/frontend --type=merge -p '{"spec":{"strategy":{"dockerStrategy":{"insecure":true}}}}' --insecure-skip-tls-verify
-                        oc patch bc/frontend --type=merge -p '{"spec":{"output":{"insecure":true}}}' --insecure-skip-tls-verify
                     fi
+
+                    echo "Patching frontend BuildConfig to allow insecure registry..."
+                    oc patch bc/frontend --type=merge -p '{"spec":{"strategy":{"dockerStrategy":{"insecure":true}},"output":{"insecure":true}}}' --insecure-skip-tls-verify
+
+                    echo "Starting frontend build..."
                     oc start-build frontend --from-dir=frontend --wait --follow --insecure-skip-tls-verify
                 '''
             }
@@ -48,12 +51,15 @@ pipeline {
         stage('Build Backend Image with OpenShift') {
             steps {
                 sh '''
-                    echo "Building backend image using OpenShift BuildConfig..."
-                    if ! oc get bc backend --insecure-skip-tls-verify; then
+                    echo "Ensuring backend BuildConfig exists..."
+                    if ! oc get bc backend --insecure-skip-tls-verify >/dev/null 2>&1; then
                         oc new-build --binary --name=backend --strategy=docker --insecure-skip-tls-verify
-                        oc patch bc/backend --type=merge -p '{"spec":{"strategy":{"dockerStrategy":{"insecure":true}}}}' --insecure-skip-tls-verify
-                        oc patch bc/backend --type=merge -p '{"spec":{"output":{"insecure":true}}}' --insecure-skip-tls-verify
                     fi
+
+                    echo "Patching backend BuildConfig to allow insecure registry..."
+                    oc patch bc/backend --type=merge -p '{"spec":{"strategy":{"dockerStrategy":{"insecure":true}},"output":{"insecure":true}}}' --insecure-skip-tls-verify
+
+                    echo "Starting backend build..."
                     oc start-build backend --from-dir=backend --wait --follow --insecure-skip-tls-verify
                 '''
             }
@@ -67,13 +73,13 @@ pipeline {
                         oc registry login --to=/tmp/auth.json --insecure-skip-tls-verify
                         buildah login -u $QUAY_USER -p $QUAY_PASS quay.io --tls-verify=false
 
-                        echo "Tagging and pushing frontend..."
+                        echo "Pushing frontend..."
                         FRONTEND_LOCAL=$(oc get is frontend -o jsonpath='{.status.tags[0].items[0].dockerImageReference}' --insecure-skip-tls-verify)
                         buildah pull --authfile /tmp/auth.json --tls-verify=false $FRONTEND_LOCAL
                         buildah tag $FRONTEND_LOCAL ${FRONTEND_IMAGE}
                         buildah push --authfile /tmp/auth.json --tls-verify=false ${FRONTEND_IMAGE}
 
-                        echo "Tagging and pushing backend..."
+                        echo "Pushing backend..."
                         BACKEND_LOCAL=$(oc get is backend -o jsonpath='{.status.tags[0].items[0].dockerImageReference}' --insecure-skip-tls-verify)
                         buildah pull --authfile /tmp/auth.json --tls-verify=false $BACKEND_LOCAL
                         buildah tag $BACKEND_LOCAL ${BACKEND_IMAGE}
@@ -87,7 +93,7 @@ pipeline {
             steps {
                 withCredentials([string(credentialsId: 'oc-token-id', variable: 'OC_TOKEN')]) {
                     sh '''
-                        echo "Deploying applications to OpenShift..."
+                        echo "Deploying apps to OpenShift..."
                         oc login --token=$OC_TOKEN --server=${OPENSHIFT_SERVER} --insecure-skip-tls-verify
                         oc project ${PROJECT_NAME}
 
