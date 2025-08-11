@@ -37,6 +37,8 @@ pipeline {
                     echo "Building frontend image using OpenShift BuildConfig..."
                     if ! oc get bc frontend --insecure-skip-tls-verify; then
                         oc new-build --binary --name=frontend --strategy=docker --insecure-skip-tls-verify
+                        oc patch bc/frontend --type=merge -p '{"spec":{"strategy":{"dockerStrategy":{"insecure":true}}}}' --insecure-skip-tls-verify
+                        oc patch bc/frontend --type=merge -p '{"spec":{"output":{"insecure":true}}}' --insecure-skip-tls-verify
                     fi
                     oc start-build frontend --from-dir=frontend --wait --follow --insecure-skip-tls-verify
                 '''
@@ -49,6 +51,8 @@ pipeline {
                     echo "Building backend image using OpenShift BuildConfig..."
                     if ! oc get bc backend --insecure-skip-tls-verify; then
                         oc new-build --binary --name=backend --strategy=docker --insecure-skip-tls-verify
+                        oc patch bc/backend --type=merge -p '{"spec":{"strategy":{"dockerStrategy":{"insecure":true}}}}' --insecure-skip-tls-verify
+                        oc patch bc/backend --type=merge -p '{"spec":{"output":{"insecure":true}}}' --insecure-skip-tls-verify
                     fi
                     oc start-build backend --from-dir=backend --wait --follow --insecure-skip-tls-verify
                 '''
