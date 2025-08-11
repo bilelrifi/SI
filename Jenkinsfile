@@ -1,7 +1,7 @@
 pipeline {
-  agent {
-    kubernetes {
-      yaml """
+    agent {
+        kubernetes {
+            yaml """
 apiVersion: v1
 kind: Pod
 metadata:
@@ -15,16 +15,15 @@ spec:
     - cat
     tty: true
 """
+        }
     }
-  }
-
-  stages {
+    stages {
         stage('Node') {
-          steps {
-            container('nodejs') {
-              sh 'node -v'
+            steps {
+                container('nodejs') {
+                    sh 'node -v'
+                }
             }
-          }
-        }    
-    }
+        }    
+    }
 }
