@@ -35,10 +35,10 @@ pipeline {
             steps {
                 sh '''
                     echo "Building frontend image using OpenShift BuildConfig..."
-                    if ! oc get bc frontend; then
-                        oc new-build --binary --name=frontend --strategy=docker
+                    if ! oc get bc frontend --insecure-skip-tls-verify; then
+                        oc new-build --binary --name=frontend --strategy=docker --insecure-skip-tls-verify
                     fi
-                    oc start-build frontend --from-dir=frontend --wait --follow
+                    oc start-build frontend --from-dir=frontend --wait --follow --insecure-skip-tls-verify
                 '''
             }
         }
@@ -47,10 +47,10 @@ pipeline {
             steps {
                 sh '''
                     echo "Building backend image using OpenShift BuildConfig..."
-                    if ! oc get bc backend; then
-                        oc new-build --binary --name=backend --strategy=docker
+                    if ! oc get bc backend --insecure-skip-tls-verify; then
+                        oc new-build --binary --name=backend --strategy=docker --insecure-skip-tls-verify
                     fi
-                    oc start-build backend --from-dir=backend --wait --follow
+                    oc start-build backend --from-dir=backend --wait --follow --insecure-skip-tls-verify
                 '''
             }
         }
@@ -60,20 +60,20 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIALS}", passwordVariable: 'QUAY_PASS', usernameVariable: 'QUAY_USER')]) {
                     sh '''
                         echo "Logging into Quay.io..."
-                        oc registry login --to=/tmp/auth.json
-                        buildah login -u $QUAY_USER -p $QUAY_PASS quay.io
+                        oc registry login --to=/tmp/auth.json --insecure-skip-tls-verify
+                        buildah login -u $QUAY_USER -p $QUAY_PASS quay.io --tls-verify=false
 
                         echo "Tagging and pushing frontend..."
-                        FRONTEND_LOCAL=$(oc get is frontend -o jsonpath='{.status.tags[0].items[0].dockerImageReference}')
-                        buildah pull --authfile /tmp/auth.json $FRONTEND_LOCAL
+                        FRONTEND_LOCAL=$(oc get is frontend -o jsonpath='{.status.tags[0].items[0].dockerImageReference}' --insecure-skip-tls-verify)
+                        buildah pull --authfile /tmp/auth.json --tls-verify=false $FRONTEND_LOCAL
                         buildah tag $FRONTEND_LOCAL ${FRONTEND_IMAGE}
-                        buildah push --authfile /tmp/auth.json ${FRONTEND_IMAGE}
+                        buildah push --authfile /tmp/auth.json --tls-verify=false ${FRONTEND_IMAGE}
 
                         echo "Tagging and pushing backend..."
-                        BACKEND_LOCAL=$(oc get is backend -o jsonpath='{.status.tags[0].items[0].dockerImageReference}')
-                        buildah pull --authfile /tmp/auth.json $BACKEND_LOCAL
+                        BACKEND_LOCAL=$(oc get is backend -o jsonpath='{.status.tags[0].items[0].dockerImageReference}' --insecure-skip-tls-verify)
+                        buildah pull --authfile /tmp/auth.json --tls-verify=false $BACKEND_LOCAL
                         buildah tag $BACKEND_LOCAL ${BACKEND_IMAGE}
-                        buildah push --authfile /tmp/auth.json ${BACKEND_IMAGE}
+                        buildah push --authfile /tmp/auth.json --tls-verify=false ${BACKEND_IMAGE}
                     '''
                 }
             }
@@ -87,14 +87,14 @@ pipeline {
                         oc login --token=$OC_TOKEN --server=${OPENSHIFT_SERVER} --insecure-skip-tls-verify
                         oc project ${PROJECT_NAME}
 
-                        oc delete all -l app=job-frontend || true
-                        oc delete all -l app=job-backend || true
+                        oc delete all -l app=job-frontend --insecure-skip-tls-verify || true
+                        oc delete all -l app=job-backend --insecure-skip-tls-verify || true
 
-                        oc new-app ${FRONTEND_IMAGE} --name=job-frontend
-                        oc expose svc/job-frontend
+                        oc new-app ${FRONTEND_IMAGE} --name=job-frontend --insecure-skip-tls-verify
+                        oc expose svc/job-frontend --insecure-skip-tls-verify
 
-                        oc new-app ${BACKEND_IMAGE} --name=job-backend
-                        oc expose svc/job-backend
+                        oc new-app ${BACKEND_IMAGE} --name=job-backend --insecure-skip-tls-verify
+                        oc expose svc/job-backend --insecure-skip-tls-verify
                     '''
                 }
             }
