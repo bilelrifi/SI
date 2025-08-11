@@ -31,52 +31,17 @@ pipeline {
             }
         }
 
-        stage('Patch BuildConfigs to Use HTTP and Insecure') {
-            steps {
-                script {
-                    // Patch frontend BuildConfig
-                    sh '''
-                        echo "Patching frontend BuildConfig for insecure and HTTP registry..."
-
-                        # Patch insecure flags for build strategy and output
-                        oc patch bc/frontend --type=merge -p '{"spec":{"strategy":{"dockerStrategy":{"insecure":true}},"output":{"insecure":true}}}' --insecure-skip-tls-verify
-
-                        # Get current DockerStrategy from BuildConfig
-                        DOCKERSTRATEGY=$(oc get bc/frontend -o jsonpath='{.spec.strategy.dockerStrategy.from.name}' --insecure-skip-tls-verify)
-
-                        # Replace https:// with http:// if present
-                        if echo "$DOCKERSTRATEGY" | grep -q '^https://'; then
-                            NEWFROM=$(echo "$DOCKERSTRATEGY" | sed 's/^https:/http:/')
-                            oc patch bc/frontend --type=json -p="[{'op':'replace','path':'/spec/strategy/dockerStrategy/from/name','value':'${NEWFROM}'}]" --insecure-skip-tls-verify
-                            echo "Patched frontend dockerStrategy.from.name to use HTTP: $NEWFROM"
-                        else
-                            echo "No HTTPS prefix found in frontend dockerStrategy.from.name, no change needed"
-                        fi
-                    '''
-
-                    // Patch backend BuildConfig
-                    sh '''
-                        echo "Patching backend BuildConfig for insecure and HTTP registry..."
-
-                        oc patch bc/backend --type=merge -p '{"spec":{"strategy":{"dockerStrategy":{"insecure":true}},"output":{"insecure":true}}}' --insecure-skip-tls-verify
-
-                        DOCKERSTRATEGY=$(oc get bc/backend -o jsonpath='{.spec.strategy.dockerStrategy.from.name}' --insecure-skip-tls-verify)
-
-                        if echo "$DOCKERSTRATEGY" | grep -q '^https://'; then
-                            NEWFROM=$(echo "$DOCKERSTRATEGY" | sed 's/^https:/http:/')
-                            oc patch bc/backend --type=json -p="[{'op':'replace','path':'/spec/strategy/dockerStrategy/from/name','value':'${NEWFROM}'}]" --insecure-skip-tls-verify
-                            echo "Patched backend dockerStrategy.from.name to use HTTP: $NEWFROM"
-                        else
-                            echo "No HTTPS prefix found in backend dockerStrategy.from.name, no change needed"
-                        fi
-                    '''
-                }
-            }
-        }
-
         stage('Build Frontend Image with OpenShift') {
             steps {
                 sh '''
+                    echo "Ensuring frontend BuildConfig exists..."
+                    if ! oc get bc frontend --insecure-skip-tls-verify >/dev/null 2>&1; then
+                        oc new-build --binary --name=frontend --strategy=docker --insecure-skip-tls-verify
+                    fi
+
+                    echo "Patching frontend BuildConfig to allow insecure registry..."
+                    oc patch bc/frontend --type=merge -p '{"spec":{"strategy":{"dockerStrategy":{"insecure":true}},"output":{"insecure":true}}}' --insecure-skip-tls-verify
+
                     echo "Starting frontend build..."
                     oc start-build frontend --from-dir=frontend --wait --follow --insecure-skip-tls-verify
                 '''
@@ -86,6 +51,14 @@ pipeline {
         stage('Build Backend Image with OpenShift') {
             steps {
                 sh '''
+                    echo "Ensuring backend BuildConfig exists..."
+                    if ! oc get bc backend --insecure-skip-tls-verify >/dev/null 2>&1; then
+                        oc new-build --binary --name=backend --strategy=docker --insecure-skip-tls-verify
+                    fi
+
+                    echo "Patching backend BuildConfig to allow insecure registry..."
+                    oc patch bc/backend --type=merge -p '{"spec":{"strategy":{"dockerStrategy":{"insecure":true}},"output":{"insecure":true}}}' --insecure-skip-tls-verify
+
                     echo "Starting backend build..."
                     oc start-build backend --from-dir=backend --wait --follow --insecure-skip-tls-verify
                 '''
