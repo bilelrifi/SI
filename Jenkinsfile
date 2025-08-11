@@ -6,32 +6,8 @@ pipeline {
             kind: Pod
             spec:
               containers:
-              - name: jnlp
-                image: jenkins/inbound-agent:3107.v665000b_51092-15
-                env:
-                - name: HOME
-                  value: /home/jenkins
-                resources:
-                  limits:
-                    cpu: "0.5"
-                    memory: "512Mi"
-                  requests:
-                    cpu: "0.2"
-                    memory: "256Mi"
               - name: podman
                 image: quay.io/podman/stable:latest
-                command:
-                - cat
-                tty: true
-                resources:
-                  limits:
-                    cpu: "1"
-                    memory: "1Gi"
-                  requests:
-                    cpu: "0.5"
-                    memory: "512Mi"
-              - name: kubectl
-                image: lachlanevenson/k8s-kubectl:latest
                 command:
                 - cat
                 tty: true
@@ -63,7 +39,6 @@ pipeline {
         stage('Login to OpenShift') {
             steps {
                 catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                    container('kubectl') {
                         withCredentials([string(credentialsId: 'oc-token-id', variable: 'OC_TOKEN')]) {
                             sh '''
                                 echo "Logging into OpenShift with token..."
@@ -74,7 +49,7 @@ pipeline {
                                 oc whoami
                                 oc project
                             '''
-                        }
+                        
                     }
                 }
             }
@@ -132,7 +107,6 @@ pipeline {
         stage('Deploy Applications from Quay.io') {
             steps {
                 catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                    container('kubectl') {
                         withCredentials([string(credentialsId: 'oc-token-id', variable: 'OC_TOKEN')]) {
                             sh '''
                                 echo "Deploying applications to OpenShift from Quay.io..."
@@ -148,7 +122,7 @@ pipeline {
                                 oc new-app $BACKEND_IMAGE --name=job-backend
                                 oc expose svc/job-backend
                             '''
-                        }
+                        
                     }
                 }
             }
