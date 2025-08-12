@@ -44,11 +44,14 @@ pipeline {
                           serviceAccountName: jenkins
                           containers:
                           - name: buildah
-                            image: quay.io/buildah/stable:latest
+                            # This image is a base for Buildah and can be used to run rootless
+                            image: quay.io/podman/stable:latest
                             command: ['/bin/cat']
                             tty: true
                             securityContext:
-                              privileged: true
+                              # No privileged mode for this container
+                              runAsUser: 1000
+                              allowPrivilegeEscalation: false
                             resources:
                               requests:
                                 memory: "512Mi"
@@ -63,13 +66,15 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: "${QUAY_CREDENTIALS_ID}", usernameVariable: 'QUAY_USER', passwordVariable: 'QUAY_PASS')]) {
                     sh '''
                         echo "Logging into Quay.io with robot account..."
-                        buildah login -u $QUAY_USER -p $QUAY_PASS quay.io --tls-verify=false
+                        # Use Buildah's rootless login and specify the authfile
+                        buildah login -u $QUAY_USER -p $QUAY_PASS quay.io
                         
                         echo "Building frontend image with Buildah..."
-                        buildah bud -f ./frontend/Dockerfile -t ${FRONTEND_IMAGE} ./frontend
+                        # Build in rootless mode
+                        buildah bud --storage-driver=vfs -f ./frontend/Dockerfile -t ${FRONTEND_IMAGE} ./frontend
                         
                         echo "Pushing frontend image to Quay.io..."
-                        buildah push --tls-verify=false ${FRONTEND_IMAGE}
+                        buildah push ${FRONTEND_IMAGE}
                     '''
                 }
             }
@@ -86,11 +91,12 @@ pipeline {
                           serviceAccountName: jenkins
                           containers:
                           - name: buildah
-                            image: quay.io/buildah/stable:latest
+                            image: quay.io/podman/stable:latest
                             command: ['/bin/cat']
                             tty: true
                             securityContext:
-                              privileged: true
+                              runAsUser: 1000
+                              allowPrivilegeEscalation: false
                             resources:
                               requests:
                                 memory: "512Mi"
@@ -105,13 +111,13 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: "${QUAY_CREDENTIALS_ID}", usernameVariable: 'QUAY_USER', passwordVariable: 'QUAY_PASS')]) {
                     sh '''
                         echo "Logging into Quay.io with robot account..."
-                        buildah login -u $QUAY_USER -p $QUAY_PASS quay.io --tls-verify=false
+                        buildah login -u $QUAY_USER -p $QUAY_PASS quay.io
 
                         echo "Building backend image with Buildah..."
-                        buildah bud -f ./backend/Dockerfile -t ${BACKEND_IMAGE} ./backend
+                        buildah bud --storage-driver=vfs -f ./backend/Dockerfile -t ${BACKEND_IMAGE} ./backend
 
                         echo "Pushing backend image to Quay.io..."
-                        buildah push --tls-verify=false ${BACKEND_IMAGE}
+                        buildah push ${BACKEND_IMAGE}
                     '''
                 }
             }
