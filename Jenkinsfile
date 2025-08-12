@@ -19,6 +19,12 @@ pipeline {
         stage('Build & Push to Quay') {
             parallel {
                 stage('Frontend') {
+                    agent {
+                        docker {
+                            image 'quay.io/buildah/stable:v1.35.4'
+                            args '--privileged -v /var/lib/containers:/var/lib/containers'
+                        }
+                    }
                     steps {
                         withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIALS}", passwordVariable: 'QUAY_PASS', usernameVariable: 'QUAY_USER')]) {
                             sh '''
@@ -37,6 +43,12 @@ pipeline {
                 }
 
                 stage('Backend') {
+                    agent {
+                        docker {
+                            image 'quay.io/buildah/stable:v1.35.4'
+                            args '--privileged -v /var/lib/containers:/var/lib/containers'
+                        }
+                    }
                     steps {
                         withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIALS}", passwordVariable: 'QUAY_PASS', usernameVariable: 'QUAY_USER')]) {
                             sh '''
@@ -69,7 +81,6 @@ pipeline {
 
                         sleep 10
 
-                        # Deploy directly from Quay images
                         oc new-app ${FRONTEND_IMAGE} --name=job-frontend
                         oc expose svc/job-frontend
 
