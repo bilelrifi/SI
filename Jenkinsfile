@@ -10,22 +10,6 @@ pipeline {
     }
 
     stages {
-        stage('Install Buildah') {
-            steps {
-                sh '''
-                    echo "Checking if Buildah is installed..."
-                    if ! command -v buildah >/dev/null 2>&1; then
-                        echo "Buildah not found. Installing..."
-                        sudo dnf -y install buildah
-                    else
-                        echo "Buildah is already installed."
-                    fi
-                    echo "Buildah version:"
-                    buildah --version
-                '''
-            }
-        }
-
         stage('Clone Repo') {
             steps {
                 checkout scm
@@ -35,6 +19,12 @@ pipeline {
         stage('Build & Push to Quay') {
             parallel {
                 stage('Frontend') {
+                    agent {
+                        docker {
+                            image 'quay.io/buildah/stable:v1.35.4'
+                            args '--privileged -v /var/lib/containers:/var/lib/containers'
+                        }
+                    }
                     steps {
                         withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIALS}", passwordVariable: 'QUAY_PASS', usernameVariable: 'QUAY_USER')]) {
                             sh '''
@@ -45,7 +35,7 @@ pipeline {
                                 cd frontend
                                 buildah bud -t ${FRONTEND_IMAGE} .
 
-                                echo "Pushing frontend image..."
+                                echo "Pushing frontend image to Quay..."
                                 buildah push ${FRONTEND_IMAGE}
                             '''
                         }
@@ -53,6 +43,12 @@ pipeline {
                 }
 
                 stage('Backend') {
+                    agent {
+                        docker {
+                            image 'quay.io/buildah/stable:v1.35.4'
+                            args '--privileged -v /var/lib/containers:/var/lib/containers'
+                        }
+                    }
                     steps {
                         withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIALS}", passwordVariable: 'QUAY_PASS', usernameVariable: 'QUAY_USER')]) {
                             sh '''
@@ -63,7 +59,7 @@ pipeline {
                                 cd backend
                                 buildah bud -t ${BACKEND_IMAGE} .
 
-                                echo "Pushing backend image..."
+                                echo "Pushing backend image to Quay..."
                                 buildah push ${BACKEND_IMAGE}
                             '''
                         }
@@ -82,6 +78,7 @@ pipeline {
 
                         oc delete all -l app=job-frontend --ignore-not-found=true
                         oc delete all -l app=job-backend --ignore-not-found=true
+
                         sleep 10
 
                         oc new-app ${FRONTEND_IMAGE} --name=job-frontend
