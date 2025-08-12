@@ -9,30 +9,25 @@ spec:
     - name: buildah
       image: quay.io/buildah/stable:v1.35.4
       command:
-        - cat
-      tty: true
+        - sleep
+      args:
+        - '99d'
       volumeMounts:
         - name: jenkins-storage
           mountPath: /var/lib/containers
-        - name: buildah-cache
-          mountPath: /tmp/buildah-cache
         - name: tmp-storage
           mountPath: /tmp
       env:
-        - name: BUILDAH_ISOLATION
-          value: "chroot"
         - name: STORAGE_DRIVER
           value: "vfs"
+        - name: BUILDAH_ISOLATION
+          value: "chroot"
         - name: BUILDAH_LAYERS
           value: "true"
-        - name: XDG_RUNTIME_DIR
-          value: "/tmp"
   volumes:
     - name: jenkins-storage
       persistentVolumeClaim:
         claimName: jenkins
-    - name: buildah-cache
-      emptyDir: {}
     - name: tmp-storage
       emptyDir: {}
 """
@@ -54,77 +49,58 @@ spec:
             }
         }
 
-        stage('Setup Buildah Storage') {
+        stage('Setup Buildah') {
             steps {
                 container('buildah') {
                     sh '''
-                        echo "Setting up Buildah storage and cache directories..."
-                        CURRENT_USER=$(whoami)
-                        CURRENT_UID=$(id -u)
-                        CURRENT_GID=$(id -g)
-                        echo "Running as user: $CURRENT_USER (UID: $CURRENT_UID, GID: $CURRENT_GID)"
+                        echo "Setting up Buildah environment..."
                         
-                        # Create storage directories with current user permissions
+                        # Get current user info
+                        whoami
+                        id
+                        
+                        # Create necessary directories
                         mkdir -p /var/lib/containers/storage
-                        mkdir -p /tmp/buildah-cache/frontend
-                        mkdir -p /tmp/buildah-cache/backend
+                        mkdir -p /tmp/cache
                         
-                        # Create home directory structure for rootless buildah
-                        HOME_DIR="/tmp/buildah-home"
-                        mkdir -p $HOME_DIR/.config/containers
-                        mkdir -p $HOME_DIR/.local/share/containers
-                        export HOME=$HOME_DIR
+                        # Set up buildah configuration
+                        export STORAGE_DRIVER=vfs
+                        export BUILDAH_ISOLATION=chroot
                         
-                        echo "Configuring storage.conf for rootless operation..."
-                        cat > $HOME_DIR/.config/containers/storage.conf << EOF
-[storage]
-driver = "vfs"
-runroot = "/tmp/buildah-runtime"
-graphroot = "/var/lib/containers/storage"
-
-[storage.options]
-mount_program = "/usr/bin/fuse-overlayfs"
-EOF
-                        
-                        # Create runtime directory
-                        mkdir -p /tmp/buildah-runtime
-                        
-                        echo "Storage setup complete"
-                        export HOME=$HOME_DIR
+                        echo "Testing buildah..."
+                        buildah version
                         buildah info
                     '''
                 }
             }
         }
 
-        stage('Build & Push to Quay') {
+        stage('Build & Push Images') {
             parallel {
                 stage('Frontend') {
                     steps {
                         container('buildah') {
                             withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIALS}", passwordVariable: 'QUAY_PASS', usernameVariable: 'QUAY_USER')]) {
                                 sh '''
-                                    # Set up environment for rootless buildah
-                                    HOME_DIR="/tmp/buildah-home"
-                                    export HOME=$HOME_DIR
+                                    echo "Building frontend image..."
                                     
-                                    echo "Logging into Quay..."
+                                    # Login to registry
                                     buildah login -u "$QUAY_USER" -p "$QUAY_PASS" quay.io
-
-                                    echo "Building frontend image with layer caching (rootless)..."
-                                    cd frontend
                                     
-                                    # Use cache mount and enable layers for better caching
-                                    buildah bud \
+                                    # Build with caching enabled
+                                    cd frontend
+                                    buildah build \
                                         --storage-driver=vfs \
                                         --layers \
-                                        --cache-from=${FRONTEND_IMAGE} \
-                                        --cache-to=type=local,dest=/tmp/buildah-cache/frontend \
-                                        --cache-from=type=local,src=/tmp/buildah-cache/frontend \
-                                        -t ${FRONTEND_IMAGE} .
-
-                                    echo "Pushing frontend image..."
-                                    buildah push --storage-driver=vfs ${FRONTEND_IMAGE}
+                                        --tag ${FRONTEND_IMAGE} \
+                                        .
+                                    
+                                    # Push image
+                                    buildah push \
+                                        --storage-driver=vfs \
+                                        ${FRONTEND_IMAGE}
+                                    
+                                    echo "Frontend build complete"
                                 '''
                             }
                         }
@@ -136,27 +112,25 @@ EOF
                         container('buildah') {
                             withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIALS}", passwordVariable: 'QUAY_PASS', usernameVariable: 'QUAY_USER')]) {
                                 sh '''
-                                    # Set up environment for rootless buildah
-                                    HOME_DIR="/tmp/buildah-home"
-                                    export HOME=$HOME_DIR
+                                    echo "Building backend image..."
                                     
-                                    echo "Logging into Quay..."
+                                    # Login to registry
                                     buildah login -u "$QUAY_USER" -p "$QUAY_PASS" quay.io
-
-                                    echo "Building backend image with layer caching (rootless)..."
-                                    cd backend
                                     
-                                    # Use cache mount and enable layers for better caching
-                                    buildah bud \
+                                    # Build with caching enabled
+                                    cd backend
+                                    buildah build \
                                         --storage-driver=vfs \
                                         --layers \
-                                        --cache-from=${BACKEND_IMAGE} \
-                                        --cache-to=type=local,dest=/tmp/buildah-cache/backend \
-                                        --cache-from=type=local,src=/tmp/buildah-cache/backend \
-                                        -t ${BACKEND_IMAGE} .
-
-                                    echo "Pushing backend image..."
-                                    buildah push --storage-driver=vfs ${BACKEND_IMAGE}
+                                        --tag ${BACKEND_IMAGE} \
+                                        .
+                                    
+                                    # Push image
+                                    buildah push \
+                                        --storage-driver=vfs \
+                                        ${BACKEND_IMAGE}
+                                    
+                                    echo "Backend build complete"
                                 '''
                             }
                         }
@@ -165,26 +139,39 @@ EOF
             }
         }
 
-        stage('Deploy from Quay') {
+        stage('Deploy to OpenShift') {
             steps {
                 container('buildah') {
                     withCredentials([string(credentialsId: 'oc-token-id', variable: 'OC_TOKEN')]) {
                         sh '''
-                            echo "Deploying from Quay..."
+                            echo "Installing OpenShift CLI..."
+                            # Download and install oc if not present
+                            if ! command -v oc &> /dev/null; then
+                                curl -L https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/openshift-client-linux.tar.gz | tar -xz -C /tmp
+                                chmod +x /tmp/oc
+                                export PATH=/tmp:$PATH
+                            fi
+                            
+                            echo "Deploying to OpenShift..."
                             oc login --token=$OC_TOKEN --server=${OPENSHIFT_SERVER} --insecure-skip-tls-verify
                             oc project ${PROJECT_NAME}
 
+                            # Clean up existing deployments
                             oc delete all -l app=job-frontend --ignore-not-found=true
                             oc delete all -l app=job-backend --ignore-not-found=true
 
+                            # Wait a moment for cleanup
                             sleep 10
 
+                            # Deploy new applications
                             oc new-app ${FRONTEND_IMAGE} --name=job-frontend
                             oc expose svc/job-frontend
 
                             oc new-app ${BACKEND_IMAGE} --name=job-backend
                             oc expose svc/job-backend
 
+                            # Show status
+                            echo "Deployment status:"
                             oc get pods
                             oc get svc
                             oc get routes
@@ -194,18 +181,21 @@ EOF
             }
         }
 
-        stage('Cleanup Old Cache') {
+        stage('Cache Cleanup') {
             steps {
                 container('buildah') {
                     sh '''
-                        echo "Cleaning up old cache entries to save space..."
-                        # Keep only recent cache files in tmp storage
-                        find /tmp/buildah-cache -type f -mtime +7 -delete 2>/dev/null || true
-                        find /var/lib/containers/storage -name "*.tmp" -mtime +1 -delete 2>/dev/null || true
+                        echo "Cleaning up old cache..."
                         
-                        # Show cache usage
-                        du -sh /tmp/buildah-cache/ 2>/dev/null || echo "Cache directory not found yet"
-                        du -sh /var/lib/containers/storage/ 2>/dev/null || echo "Storage directory not found yet"
+                        # Clean old containers and images
+                        buildah containers --format "{{.ContainerID}}" | head -n -5 | xargs -r buildah rm 2>/dev/null || true
+                        buildah images --format "{{.ID}}" | head -n -10 | xargs -r buildah rmi 2>/dev/null || true
+                        
+                        # Show current storage usage
+                        echo "Storage usage:"
+                        du -sh /var/lib/containers/ 2>/dev/null || echo "No storage directory found"
+                        
+                        echo "Cleanup complete"
                     '''
                 }
             }
@@ -224,14 +214,13 @@ EOF
                 try {
                     container('buildah') {
                         sh '''
-                            echo "Build cache statistics:"
-                            du -sh /tmp/buildah-cache/ 2>/dev/null || echo "No cache directory found"
-                            echo "Storage statistics:"
-                            du -sh /var/lib/containers/storage/ 2>/dev/null || echo "No storage directory found"
+                            echo "Build statistics:"
+                            buildah images 2>/dev/null || echo "No images found"
+                            du -sh /var/lib/containers/ 2>/dev/null || echo "No storage directory found"
                         '''
                     }
                 } catch (Exception e) {
-                    echo "Could not collect cache statistics: ${e.getMessage()}"
+                    echo "Could not collect build statistics: ${e.getMessage()}"
                 }
             }
         }
