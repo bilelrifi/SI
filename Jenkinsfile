@@ -36,13 +36,12 @@ pipeline {
         stage('Build and Push Frontend Image') {
             agent {
                 kubernetes {
-                    container 'jnlp' // Use the default Jenkins JNLP container
-                    defaultContainer 'buildah' // Set buildah as the primary container for this stage
+                    defaultContainer 'buildah'
                     yaml '''
                         apiVersion: v1
                         kind: Pod
                         spec:
-                          serviceAccount: jenkins
+                          serviceAccountName: jenkins
                           containers:
                           - name: buildah
                             image: quay.io/buildah/stable:latest
@@ -62,7 +61,6 @@ pipeline {
             }
             steps {
                 withCredentials([usernamePassword(credentialsId: "${QUAY_CREDENTIALS_ID}", usernameVariable: 'QUAY_USER', passwordVariable: 'QUAY_PASS')]) {
-                    // You'll need to re-login to Quay.io inside the buildah container
                     sh '''
                         echo "Logging into Quay.io with robot account..."
                         buildah login -u $QUAY_USER -p $QUAY_PASS quay.io --tls-verify=false
@@ -80,16 +78,15 @@ pipeline {
         stage('Build and Push Backend Image') {
             agent {
                 kubernetes {
-                    container 'jnlp'
                     defaultContainer 'buildah'
                     yaml '''
                         apiVersion: v1
                         kind: Pod
                         spec:
-                          serviceAccount: jenkins
+                          serviceAccountName: jenkins
                           containers:
                           - name: buildah
-                            image: quay.io/buildah/stable:latest'
+                            image: quay.io/buildah/stable:latest
                             command: ['/bin/cat']
                             tty: true
                             securityContext:
