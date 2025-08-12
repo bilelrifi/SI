@@ -11,14 +11,6 @@ spec:
       command:
         - cat
       tty: true
-      securityContext:
-        privileged: true
-      volumeMounts:
-        - name: containers-storage
-          mountPath: /var/lib/containers
-  volumes:
-    - name: containers-storage
-      emptyDir: {}
 """
         }
     }
@@ -48,12 +40,12 @@ spec:
                                     echo "Logging into Quay..."
                                     buildah login -u "$QUAY_USER" -p "$QUAY_PASS" quay.io
 
-                                    echo "Building frontend image..."
+                                    echo "Building frontend image (rootless)..."
                                     cd frontend
-                                    buildah bud -t ${FRONTEND_IMAGE} .
+                                    buildah bud --storage-driver=vfs -t ${FRONTEND_IMAGE} .
 
-                                    echo "Pushing frontend image..."
-                                    buildah push ${FRONTEND_IMAGE}
+                                    echo "Pushing frontend image (rootless)..."
+                                    buildah push --storage-driver=vfs ${FRONTEND_IMAGE}
                                 '''
                             }
                         }
@@ -68,12 +60,12 @@ spec:
                                     echo "Logging into Quay..."
                                     buildah login -u "$QUAY_USER" -p "$QUAY_PASS" quay.io
 
-                                    echo "Building backend image..."
+                                    echo "Building backend image (rootless)..."
                                     cd backend
-                                    buildah bud -t ${BACKEND_IMAGE} .
+                                    buildah bud --storage-driver=vfs -t ${BACKEND_IMAGE} .
 
-                                    echo "Pushing backend image..."
-                                    buildah push ${BACKEND_IMAGE}
+                                    echo "Pushing backend image (rootless)..."
+                                    buildah push --storage-driver=vfs ${BACKEND_IMAGE}
                                 '''
                             }
                         }
