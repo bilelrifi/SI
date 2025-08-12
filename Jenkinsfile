@@ -44,13 +44,11 @@ pipeline {
                           serviceAccountName: jenkins
                           containers:
                           - name: buildah
-                            # This image is a base for Buildah and can be used to run rootless
                             image: quay.io/podman/stable:latest
                             command: ['/bin/cat']
                             tty: true
                             securityContext:
-                              # No privileged mode for this container
-                              runAsUser: 1000
+                              # The runAsUser is removed. OpenShift will assign one automatically.
                               allowPrivilegeEscalation: false
                             resources:
                               requests:
@@ -66,11 +64,9 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: "${QUAY_CREDENTIALS_ID}", usernameVariable: 'QUAY_USER', passwordVariable: 'QUAY_PASS')]) {
                     sh '''
                         echo "Logging into Quay.io with robot account..."
-                        # Use Buildah's rootless login and specify the authfile
                         buildah login -u $QUAY_USER -p $QUAY_PASS quay.io
                         
                         echo "Building frontend image with Buildah..."
-                        # Build in rootless mode
                         buildah bud --storage-driver=vfs -f ./frontend/Dockerfile -t ${FRONTEND_IMAGE} ./frontend
                         
                         echo "Pushing frontend image to Quay.io..."
@@ -95,7 +91,7 @@ pipeline {
                             command: ['/bin/cat']
                             tty: true
                             securityContext:
-                              runAsUser: 1000
+                              # The runAsUser is removed. OpenShift will assign one automatically.
                               allowPrivilegeEscalation: false
                             resources:
                               requests:
