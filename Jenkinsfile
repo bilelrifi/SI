@@ -11,6 +11,32 @@ spec:
       command:
         - cat
       tty: true
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      volumeMounts:
+        - name: jenkins-storage
+          mountPath: /home/build/.local/share/containers
+        - name: tmp-storage
+          mountPath: /tmp
+      env:
+        - name: BUILDAH_ISOLATION
+          value: "chroot"
+        - name: STORAGE_DRIVER
+          value: "vfs"
+        - name: BUILDAH_LAYERS
+          value: "true"
+  volumes:
+    - name: jenkins-storage
+      persistentVolumeClaim:
+        claimName: jenkins
+    - name: tmp-storage
+      emptyDir: {}
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
 """
         }
     }
@@ -30,6 +56,33 @@ spec:
             }
         }
 
+        stage('Setup Buildah Storage') {
+            steps {
+                container('buildah') {
+                    sh '''
+                        echo "Setting up Buildah storage and cache directories..."
+                        mkdir -p /home/build/.local/share/containers/storage
+                        mkdir -p /home/build/.cache/buildah
+                        
+                        echo "Configuring storage.conf for rootless operation..."
+                        mkdir -p /home/build/.config/containers
+                        cat > /home/build/.config/containers/storage.conf << EOF
+[storage]
+driver = "vfs"
+runroot = "/home/build/.local/share/containers/storage"
+graphroot = "/home/build/.local/share/containers/storage"
+
+[storage.options]
+mount_program = "/usr/bin/fuse-overlayfs"
+EOF
+                        
+                        echo "Storage setup complete"
+                        buildah info
+                    '''
+                }
+            }
+        }
+
         stage('Build & Push to Quay') {
             parallel {
                 stage('Frontend') {
@@ -40,11 +93,19 @@ spec:
                                     echo "Logging into Quay..."
                                     buildah login -u "$QUAY_USER" -p "$QUAY_PASS" quay.io
 
-                                    echo "Building frontend image (rootless)..."
+                                    echo "Building frontend image with layer caching (rootless)..."
                                     cd frontend
-                                    buildah bud --storage-driver=vfs -t ${FRONTEND_IMAGE} .
+                                    
+                                    # Use cache mount and enable layers for better caching
+                                    buildah bud \
+                                        --storage-driver=vfs \
+                                        --layers \
+                                        --cache-from=${FRONTEND_IMAGE} \
+                                        --cache-to=type=local,dest=/home/build/.cache/buildah/frontend \
+                                        --cache-from=type=local,src=/home/build/.cache/buildah/frontend \
+                                        -t ${FRONTEND_IMAGE} .
 
-                                    echo "Pushing frontend image (rootless)..."
+                                    echo "Pushing frontend image..."
                                     buildah push --storage-driver=vfs ${FRONTEND_IMAGE}
                                 '''
                             }
@@ -60,11 +121,19 @@ spec:
                                     echo "Logging into Quay..."
                                     buildah login -u "$QUAY_USER" -p "$QUAY_PASS" quay.io
 
-                                    echo "Building backend image (rootless)..."
+                                    echo "Building backend image with layer caching (rootless)..."
                                     cd backend
-                                    buildah bud --storage-driver=vfs -t ${BACKEND_IMAGE} .
+                                    
+                                    # Use cache mount and enable layers for better caching
+                                    buildah bud \
+                                        --storage-driver=vfs \
+                                        --layers \
+                                        --cache-from=${BACKEND_IMAGE} \
+                                        --cache-to=type=local,dest=/home/build/.cache/buildah/backend \
+                                        --cache-from=type=local,src=/home/build/.cache/buildah/backend \
+                                        -t ${BACKEND_IMAGE} .
 
-                                    echo "Pushing backend image (rootless)..."
+                                    echo "Pushing backend image..."
                                     buildah push --storage-driver=vfs ${BACKEND_IMAGE}
                                 '''
                             }
@@ -102,6 +171,23 @@ spec:
                 }
             }
         }
+
+        stage('Cleanup Old Cache') {
+            steps {
+                container('buildah') {
+                    sh '''
+                        echo "Cleaning up old cache entries to save space..."
+                        # Keep only the last 7 days of cache
+                        find /home/build/.cache/buildah -type f -mtime +7 -delete 2>/dev/null || true
+                        find /home/build/.local/share/containers/storage -name "*.tmp" -mtime +1 -delete 2>/dev/null || true
+                        
+                        # Show cache usage
+                        du -sh /home/build/.cache/buildah/ 2>/dev/null || echo "Cache directory not found yet"
+                        du -sh /home/build/.local/share/containers/storage/ 2>/dev/null || echo "Storage directory not found yet"
+                    '''
+                }
+            }
+        }
     }
 
     post {
@@ -110,6 +196,16 @@ spec:
         }
         failure {
             echo 'Pipeline failed. Check the logs for details.'
+        }
+        always {
+            container('buildah') {
+                sh '''
+                    echo "Build cache statistics:"
+                    du -sh /home/build/.cache/buildah/ 2>/dev/null || echo "No cache directory found"
+                    echo "Storage statistics:"
+                    du -sh /home/build/.local/share/containers/storage/ 2>/dev/null || echo "No storage directory found"
+                '''
+            }
         }
     }
 }
