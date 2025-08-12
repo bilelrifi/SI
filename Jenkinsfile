@@ -28,40 +28,46 @@ pipeline {
                         oc login --token=$OC_TOKEN --server=${OPENSHIFT_SERVER} --insecure-skip-tls-verify
                         oc project ${PROJECT_NAME}
                         echo "Successfully logged in to project: ${PROJECT_NAME}"
-
-                        echo "Logging into Quay.io with robot account..."
-                        # Login to Quay.io for oc
-                        # This command requires oc to be installed and logged into OpenShift
-                        oc create secret generic quay-robot-account --from-literal=username=$QUAY_USER --from-literal=password=$QUAY_PASS --dry-run=client -o yaml | oc apply -f -
-                        oc secrets link default quay-robot-account --for=pull,mount
                     '''
                 }
             }
         }
-        
+
         stage('Build and Push Frontend Image') {
-            // This stage will run in a container with Buildah and OC tools
             agent {
                 kubernetes {
-                    containerTemplate {
-                        name 'buildah'
-                        image 'quay.io/buildah/stable:latest'
-                        command 'cat'
-                        tty true
-                        securityContext {
-                            privileged true // Buildah often needs privileged mode for building images
-                        }
-                    }
-                    defaultContainer 'buildah'
-                    // You might need to mount the workspace to the container
-                    // to access your source code.
+                    container 'jnlp' // Use the default Jenkins JNLP container
+                    defaultContainer 'buildah' // Set buildah as the primary container for this stage
+                    yaml '''
+                        apiVersion: v1
+                        kind: Pod
+                        spec:
+                          serviceAccount: jenkins
+                          containers:
+                          - name: buildah
+                            image: quay.io/buildah/stable:latest
+                            command: ['/bin/cat']
+                            tty: true
+                            securityContext:
+                              privileged: true
+                            resources:
+                              requests:
+                                memory: "512Mi"
+                                cpu: "500m"
+                              limits:
+                                memory: "1Gi"
+                                cpu: "1"
+                    '''
                 }
             }
             steps {
                 withCredentials([usernamePassword(credentialsId: "${QUAY_CREDENTIALS_ID}", usernameVariable: 'QUAY_USER', passwordVariable: 'QUAY_PASS')]) {
+                    // You'll need to re-login to Quay.io inside the buildah container
                     sh '''
+                        echo "Logging into Quay.io with robot account..."
+                        buildah login -u $QUAY_USER -p $QUAY_PASS quay.io --tls-verify=false
+                        
                         echo "Building frontend image with Buildah..."
-                        # Use Buildah to build the image from the frontend directory
                         buildah bud -f ./frontend/Dockerfile -t ${FRONTEND_IMAGE} ./frontend
                         
                         echo "Pushing frontend image to Quay.io..."
@@ -72,24 +78,38 @@ pipeline {
         }
         
         stage('Build and Push Backend Image') {
-            // This stage will also run in a Buildah container
             agent {
                 kubernetes {
-                    containerTemplate {
-                        name 'buildah'
-                        image 'quay.io/buildah/stable:latest'
-                        command 'cat'
-                        tty true
-                        securityContext {
-                            privileged true
-                        }
-                    }
+                    container 'jnlp'
                     defaultContainer 'buildah'
+                    yaml '''
+                        apiVersion: v1
+                        kind: Pod
+                        spec:
+                          serviceAccount: jenkins
+                          containers:
+                          - name: buildah
+                            image: quay.io/buildah/stable:latest'
+                            command: ['/bin/cat']
+                            tty: true
+                            securityContext:
+                              privileged: true
+                            resources:
+                              requests:
+                                memory: "512Mi"
+                                cpu: "500m"
+                              limits:
+                                memory: "1Gi"
+                                cpu: "1"
+                    '''
                 }
             }
             steps {
                 withCredentials([usernamePassword(credentialsId: "${QUAY_CREDENTIALS_ID}", usernameVariable: 'QUAY_USER', passwordVariable: 'QUAY_PASS')]) {
                     sh '''
+                        echo "Logging into Quay.io with robot account..."
+                        buildah login -u $QUAY_USER -p $QUAY_PASS quay.io --tls-verify=false
+
                         echo "Building backend image with Buildah..."
                         buildah bud -f ./backend/Dockerfile -t ${BACKEND_IMAGE} ./backend
 
@@ -101,7 +121,6 @@ pipeline {
         }
 
         stage('Deploy Applications') {
-            // This stage can run on a standard agent that has oc client
             agent any
             steps {
                 withCredentials([string(credentialsId: "${OC_TOKEN_ID}", variable: 'OC_TOKEN')]) {
