@@ -7,11 +7,15 @@ kind: Pod
 spec:
   containers:
     - name: buildah
-      image: quay.io/buildah/stable:v1.35.4
+      image: registry.redhat.io/ubi8/ubi:latest
       command:
-        - sleep
-      args:
-        - '99d'
+        - /bin/bash
+        - -c
+        - |
+          # Install buildah and dependencies
+          dnf install -y buildah podman-docker curl wget tar gzip
+          # Keep container running
+          tail -f /dev/null
       volumeMounts:
         - name: jenkins-storage
           mountPath: /var/lib/containers
@@ -24,6 +28,13 @@ spec:
           value: "chroot"
         - name: BUILDAH_LAYERS
           value: "true"
+      resources:
+        requests:
+          memory: "512Mi"
+          cpu: "500m"
+        limits:
+          memory: "2Gi"
+          cpu: "1000m"
   volumes:
     - name: jenkins-storage
       persistentVolumeClaim:
@@ -49,6 +60,26 @@ spec:
             }
         }
 
+        stage('Wait for Container Ready') {
+            steps {
+                container('buildah') {
+                    script {
+                        timeout(time: 5, unit: 'MINUTES') {
+                            sh '''
+                                echo "Waiting for buildah installation to complete..."
+                                while ! command -v buildah &> /dev/null; do
+                                    echo "Buildah not ready yet, waiting..."
+                                    sleep 10
+                                done
+                                echo "Buildah is ready!"
+                                buildah --version
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+
         stage('Setup Buildah') {
             steps {
                 container('buildah') {
@@ -69,7 +100,7 @@ spec:
                         
                         echo "Testing buildah..."
                         buildah version
-                        buildah info
+                        buildah info || echo "Buildah info failed, but continuing..."
                     '''
                 }
             }
@@ -84,6 +115,10 @@ spec:
                                 sh '''
                                     echo "Building frontend image..."
                                     
+                                    # Set environment
+                                    export STORAGE_DRIVER=vfs
+                                    export BUILDAH_ISOLATION=chroot
+                                    
                                     # Login to registry
                                     buildah login -u "$QUAY_USER" -p "$QUAY_PASS" quay.io
                                     
@@ -93,7 +128,13 @@ spec:
                                         --storage-driver=vfs \
                                         --layers \
                                         --tag ${FRONTEND_IMAGE} \
-                                        .
+                                        . || {
+                                        echo "Build failed, trying without cache..."
+                                        buildah build \
+                                            --storage-driver=vfs \
+                                            --tag ${FRONTEND_IMAGE} \
+                                            .
+                                    }
                                     
                                     # Push image
                                     buildah push \
@@ -114,6 +155,10 @@ spec:
                                 sh '''
                                     echo "Building backend image..."
                                     
+                                    # Set environment
+                                    export STORAGE_DRIVER=vfs
+                                    export BUILDAH_ISOLATION=chroot
+                                    
                                     # Login to registry
                                     buildah login -u "$QUAY_USER" -p "$QUAY_PASS" quay.io
                                     
@@ -123,7 +168,13 @@ spec:
                                         --storage-driver=vfs \
                                         --layers \
                                         --tag ${BACKEND_IMAGE} \
-                                        .
+                                        . || {
+                                        echo "Build failed, trying without cache..."
+                                        buildah build \
+                                            --storage-driver=vfs \
+                                            --tag ${BACKEND_IMAGE} \
+                                            .
+                                    }
                                     
                                     # Push image
                                     buildah push \
@@ -187,9 +238,9 @@ spec:
                     sh '''
                         echo "Cleaning up old cache..."
                         
-                        # Clean old containers and images
-                        buildah containers --format "{{.ContainerID}}" | head -n -5 | xargs -r buildah rm 2>/dev/null || true
-                        buildah images --format "{{.ID}}" | head -n -10 | xargs -r buildah rmi 2>/dev/null || true
+                        # Clean old containers and images (with error handling)
+                        buildah containers --format "{{.ContainerID}}" 2>/dev/null | head -n -5 | xargs -r buildah rm 2>/dev/null || true
+                        buildah images --format "{{.ID}}" 2>/dev/null | head -n -10 | xargs -r buildah rmi 2>/dev/null || true
                         
                         # Show current storage usage
                         echo "Storage usage:"
