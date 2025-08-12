@@ -16,107 +16,66 @@ pipeline {
             }
         }
 
-        stage('Login to OpenShift') {
-            steps {
-                withCredentials([string(credentialsId: 'oc-token-id', variable: 'OC_TOKEN')]) {
-                    sh '''
-                        echo "Logging into OpenShift..."
-                        oc login --token=$OC_TOKEN --server=${OPENSHIFT_SERVER} --insecure-skip-tls-verify
-                        oc project ${PROJECT_NAME}
-                        echo "Logged into OpenShift project: ${PROJECT_NAME}"
-                    '''
-                }
-            }
-        }
-
-        stage('Build Images on OpenShift') {
+        stage('Build & Push to Quay') {
             parallel {
-                stage('Build Frontend Image') {
+                stage('Frontend') {
                     steps {
-                        script {
-                            withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIALS}", passwordVariable: 'QUAY_PASS', usernameVariable: 'QUAY_USER')]) {
-                                sh '''
-                                    echo "Building frontend image on OpenShift..."
-                                    cd frontend
+                        withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIALS}", passwordVariable: 'QUAY_PASS', usernameVariable: 'QUAY_USER')]) {
+                            sh '''
+                                echo "Logging into Quay..."
+                                buildah login -u "$QUAY_USER" -p "$QUAY_PASS" quay.io
 
-                                    # Delete any old build configs
-                                    oc delete bc job-portal-frontend --ignore-not-found=true
-                                    oc delete is job-portal-frontend --ignore-not-found=true
+                                echo "Building frontend image..."
+                                cd frontend
+                                buildah bud -t ${FRONTEND_IMAGE} .
 
-                                    # Create new build config
-                                    oc new-build --name=job-portal-frontend --binary --strategy=docker
-
-                                    # Start the build from local directory
-                                    oc start-build job-portal-frontend --from-dir=. --follow
-
-                                    # Tag and push to Quay
-                                    echo "Tagging image to Quay..."
-                                    oc tag job-portal-frontend:latest ${FRONTEND_IMAGE}
-
-                                    echo "Frontend image built and pushed successfully"
-                                '''
-                            }
+                                echo "Pushing frontend image to Quay..."
+                                buildah push ${FRONTEND_IMAGE}
+                            '''
                         }
                     }
                 }
 
-                stage('Build Backend Image') {
+                stage('Backend') {
                     steps {
-                        script {
-                            withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIALS}", passwordVariable: 'QUAY_PASS', usernameVariable: 'QUAY_USER')]) {
-                                sh '''
-                                    echo "Building backend image on OpenShift..."
-                                    cd backend
+                        withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIALS}", passwordVariable: 'QUAY_PASS', usernameVariable: 'QUAY_USER')]) {
+                            sh '''
+                                echo "Logging into Quay..."
+                                buildah login -u "$QUAY_USER" -p "$QUAY_PASS" quay.io
 
-                                    # Delete any old build configs
-                                    oc delete bc job-portal-backend --ignore-not-found=true
-                                    oc delete is job-portal-backend --ignore-not-found=true
+                                echo "Building backend image..."
+                                cd backend
+                                buildah bud -t ${BACKEND_IMAGE} .
 
-                                    # Create new build config
-                                    oc new-build --name=job-portal-backend --binary --strategy=docker
-
-                                    # Start the build from local directory
-                                    oc start-build job-portal-backend --from-dir=. --follow
-
-                                    # Tag and push to Quay
-                                    echo "Tagging image to Quay..."
-                                    oc tag job-portal-backend:latest ${BACKEND_IMAGE}
-
-                                    echo "Backend image built and pushed successfully"
-                                '''
-                            }
+                                echo "Pushing backend image to Quay..."
+                                buildah push ${BACKEND_IMAGE}
+                            '''
                         }
                     }
                 }
             }
         }
 
-        stage('Deploy Applications') {
+        stage('Deploy from Quay') {
             steps {
                 withCredentials([string(credentialsId: 'oc-token-id', variable: 'OC_TOKEN')]) {
                     sh '''
-                        echo "Deploying apps to OpenShift..."
+                        echo "Deploying from Quay..."
                         oc login --token=$OC_TOKEN --server=${OPENSHIFT_SERVER} --insecure-skip-tls-verify
                         oc project ${PROJECT_NAME}
 
-                        # Clean up existing deployments
                         oc delete all -l app=job-frontend --ignore-not-found=true
                         oc delete all -l app=job-backend --ignore-not-found=true
-                        
+
                         sleep 10
 
-                        # Deploy frontend
-                        echo "Deploying frontend..."
+                        # Deploy directly from Quay images
                         oc new-app ${FRONTEND_IMAGE} --name=job-frontend
                         oc expose svc/job-frontend
 
-                        # Deploy backend
-                        echo "Deploying backend..."
                         oc new-app ${BACKEND_IMAGE} --name=job-backend
                         oc expose svc/job-backend
-                        
-                        # Show deployment status
-                        echo "Deployment status:"
+
                         oc get pods
                         oc get svc
                         oc get routes
@@ -125,7 +84,7 @@ pipeline {
             }
         }
     }
-    
+
     post {
         success {
             echo 'Pipeline completed successfully!'
