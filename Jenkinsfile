@@ -38,41 +38,45 @@ spec:
             }
         }
 
-        stage('Build Frontend') {
-            steps {
-                container('buildah') {
-                    withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIALS}", passwordVariable: 'QUAY_PASS', usernameVariable: 'QUAY_USER')]) {
-                        sh '''
-                            echo "Logging into Quay..."
-                            buildah login -u "$QUAY_USER" -p "$QUAY_PASS" quay.io
+        stage('Build & Push to Quay') {
+            parallel {
+                stage('Frontend') {
+                    steps {
+                        container('buildah') {
+                            withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIALS}", passwordVariable: 'QUAY_PASS', usernameVariable: 'QUAY_USER')]) {
+                                sh '''
+                                    echo "Logging into Quay..."
+                                    buildah login -u "$QUAY_USER" -p "$QUAY_PASS" quay.io
 
-                            echo "Building frontend image..."
-                            cd frontend
-                            buildah bud -t ${FRONTEND_IMAGE} .
+                                    echo "Building frontend image..."
+                                    cd frontend
+                                    buildah bud -t ${FRONTEND_IMAGE} .
 
-                            echo "Pushing frontend image..."
-                            buildah push ${FRONTEND_IMAGE}
-                        '''
+                                    echo "Pushing frontend image..."
+                                    buildah push ${FRONTEND_IMAGE}
+                                '''
+                            }
+                        }
                     }
                 }
-            }
-        }
 
-        stage('Build Backend') {
-            steps {
-                container('buildah') {
-                    withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIALS}", passwordVariable: 'QUAY_PASS', usernameVariable: 'QUAY_USER')]) {
-                        sh '''
-                            echo "Logging into Quay..."
-                            buildah login -u "$QUAY_USER" -p "$QUAY_PASS" quay.io
+                stage('Backend') {
+                    steps {
+                        container('buildah') {
+                            withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIALS}", passwordVariable: 'QUAY_PASS', usernameVariable: 'QUAY_USER')]) {
+                                sh '''
+                                    echo "Logging into Quay..."
+                                    buildah login -u "$QUAY_USER" -p "$QUAY_PASS" quay.io
 
-                            echo "Building backend image..."
-                            cd backend
-                            buildah bud -t ${BACKEND_IMAGE} .
+                                    echo "Building backend image..."
+                                    cd backend
+                                    buildah bud -t ${BACKEND_IMAGE} .
 
-                            echo "Pushing backend image..."
-                            buildah push ${BACKEND_IMAGE}
-                        '''
+                                    echo "Pushing backend image..."
+                                    buildah push ${BACKEND_IMAGE}
+                                '''
+                            }
+                        }
                     }
                 }
             }
