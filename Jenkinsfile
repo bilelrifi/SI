@@ -11,13 +11,11 @@ spec:
       command:
         - cat
       tty: true
-      securityContext:
-        runAsUser: 1000
-        runAsGroup: 1000
-        fsGroup: 1000
       volumeMounts:
         - name: jenkins-storage
-          mountPath: /home/build/.local/share/containers
+          mountPath: /var/lib/containers
+        - name: buildah-cache
+          mountPath: /tmp/buildah-cache
         - name: tmp-storage
           mountPath: /tmp
       env:
@@ -27,16 +25,16 @@ spec:
           value: "vfs"
         - name: BUILDAH_LAYERS
           value: "true"
+        - name: XDG_RUNTIME_DIR
+          value: "/tmp"
   volumes:
     - name: jenkins-storage
       persistentVolumeClaim:
         claimName: jenkins
+    - name: buildah-cache
+      emptyDir: {}
     - name: tmp-storage
       emptyDir: {}
-  securityContext:
-    runAsNonRoot: true
-    runAsUser: 1000
-    fsGroup: 1000
 """
         }
     }
@@ -61,22 +59,38 @@ spec:
                 container('buildah') {
                     sh '''
                         echo "Setting up Buildah storage and cache directories..."
-                        mkdir -p /home/build/.local/share/containers/storage
-                        mkdir -p /home/build/.cache/buildah
+                        CURRENT_USER=$(whoami)
+                        CURRENT_UID=$(id -u)
+                        CURRENT_GID=$(id -g)
+                        echo "Running as user: $CURRENT_USER (UID: $CURRENT_UID, GID: $CURRENT_GID)"
+                        
+                        # Create storage directories with current user permissions
+                        mkdir -p /var/lib/containers/storage
+                        mkdir -p /tmp/buildah-cache/frontend
+                        mkdir -p /tmp/buildah-cache/backend
+                        
+                        # Create home directory structure for rootless buildah
+                        HOME_DIR="/tmp/buildah-home"
+                        mkdir -p $HOME_DIR/.config/containers
+                        mkdir -p $HOME_DIR/.local/share/containers
+                        export HOME=$HOME_DIR
                         
                         echo "Configuring storage.conf for rootless operation..."
-                        mkdir -p /home/build/.config/containers
-                        cat > /home/build/.config/containers/storage.conf << EOF
+                        cat > $HOME_DIR/.config/containers/storage.conf << EOF
 [storage]
 driver = "vfs"
-runroot = "/home/build/.local/share/containers/storage"
-graphroot = "/home/build/.local/share/containers/storage"
+runroot = "/tmp/buildah-runtime"
+graphroot = "/var/lib/containers/storage"
 
 [storage.options]
 mount_program = "/usr/bin/fuse-overlayfs"
 EOF
                         
+                        # Create runtime directory
+                        mkdir -p /tmp/buildah-runtime
+                        
                         echo "Storage setup complete"
+                        export HOME=$HOME_DIR
                         buildah info
                     '''
                 }
@@ -90,6 +104,10 @@ EOF
                         container('buildah') {
                             withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIALS}", passwordVariable: 'QUAY_PASS', usernameVariable: 'QUAY_USER')]) {
                                 sh '''
+                                    # Set up environment for rootless buildah
+                                    HOME_DIR="/tmp/buildah-home"
+                                    export HOME=$HOME_DIR
+                                    
                                     echo "Logging into Quay..."
                                     buildah login -u "$QUAY_USER" -p "$QUAY_PASS" quay.io
 
@@ -101,8 +119,8 @@ EOF
                                         --storage-driver=vfs \
                                         --layers \
                                         --cache-from=${FRONTEND_IMAGE} \
-                                        --cache-to=type=local,dest=/home/build/.cache/buildah/frontend \
-                                        --cache-from=type=local,src=/home/build/.cache/buildah/frontend \
+                                        --cache-to=type=local,dest=/tmp/buildah-cache/frontend \
+                                        --cache-from=type=local,src=/tmp/buildah-cache/frontend \
                                         -t ${FRONTEND_IMAGE} .
 
                                     echo "Pushing frontend image..."
@@ -118,6 +136,10 @@ EOF
                         container('buildah') {
                             withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDENTIALS}", passwordVariable: 'QUAY_PASS', usernameVariable: 'QUAY_USER')]) {
                                 sh '''
+                                    # Set up environment for rootless buildah
+                                    HOME_DIR="/tmp/buildah-home"
+                                    export HOME=$HOME_DIR
+                                    
                                     echo "Logging into Quay..."
                                     buildah login -u "$QUAY_USER" -p "$QUAY_PASS" quay.io
 
@@ -129,8 +151,8 @@ EOF
                                         --storage-driver=vfs \
                                         --layers \
                                         --cache-from=${BACKEND_IMAGE} \
-                                        --cache-to=type=local,dest=/home/build/.cache/buildah/backend \
-                                        --cache-from=type=local,src=/home/build/.cache/buildah/backend \
+                                        --cache-to=type=local,dest=/tmp/buildah-cache/backend \
+                                        --cache-from=type=local,src=/tmp/buildah-cache/backend \
                                         -t ${BACKEND_IMAGE} .
 
                                     echo "Pushing backend image..."
@@ -177,13 +199,13 @@ EOF
                 container('buildah') {
                     sh '''
                         echo "Cleaning up old cache entries to save space..."
-                        # Keep only the last 7 days of cache
-                        find /home/build/.cache/buildah -type f -mtime +7 -delete 2>/dev/null || true
-                        find /home/build/.local/share/containers/storage -name "*.tmp" -mtime +1 -delete 2>/dev/null || true
+                        # Keep only recent cache files in tmp storage
+                        find /tmp/buildah-cache -type f -mtime +7 -delete 2>/dev/null || true
+                        find /var/lib/containers/storage -name "*.tmp" -mtime +1 -delete 2>/dev/null || true
                         
                         # Show cache usage
-                        du -sh /home/build/.cache/buildah/ 2>/dev/null || echo "Cache directory not found yet"
-                        du -sh /home/build/.local/share/containers/storage/ 2>/dev/null || echo "Storage directory not found yet"
+                        du -sh /tmp/buildah-cache/ 2>/dev/null || echo "Cache directory not found yet"
+                        du -sh /var/lib/containers/storage/ 2>/dev/null || echo "Storage directory not found yet"
                     '''
                 }
             }
@@ -198,13 +220,19 @@ EOF
             echo 'Pipeline failed. Check the logs for details.'
         }
         always {
-            container('buildah') {
-                sh '''
-                    echo "Build cache statistics:"
-                    du -sh /home/build/.cache/buildah/ 2>/dev/null || echo "No cache directory found"
-                    echo "Storage statistics:"
-                    du -sh /home/build/.local/share/containers/storage/ 2>/dev/null || echo "No storage directory found"
-                '''
+            script {
+                try {
+                    container('buildah') {
+                        sh '''
+                            echo "Build cache statistics:"
+                            du -sh /tmp/buildah-cache/ 2>/dev/null || echo "No cache directory found"
+                            echo "Storage statistics:"
+                            du -sh /var/lib/containers/storage/ 2>/dev/null || echo "No storage directory found"
+                        '''
+                    }
+                } catch (Exception e) {
+                    echo "Could not collect cache statistics: ${e.getMessage()}"
+                }
             }
         }
     }
