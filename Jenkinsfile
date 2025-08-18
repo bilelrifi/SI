@@ -36,49 +36,54 @@ pipeline {
         stage('Build and Push Frontend Image') {
             agent {
                 kubernetes {
-                    defaultContainer 'podman'  // Fixed: Changed from 'buildah' to 'podman'
+                    defaultContainer 'buildah'
                     yaml '''
                         apiVersion: v1
                         kind: Pod
                         spec:
                           serviceAccountName: jenkins
                           containers:
-                          - name: podman
-                            image: quay.io/podman/stable
+                          - name: buildah
+                            image: quay.io/buildah/stable:latest
                             command: ['cat']
                             tty: true
                             securityContext:
-                              runAsUser: 0
-                              allowPrivilegeEscalation: false
-                              privileged: true  # Added: Required for container builds
+                              runAsUser: 1000
+                              runAsGroup: 1000
+                              fsGroup: 1000
                             resources:
                               requests:
                                 memory: "512Mi"
                                 cpu: "500m"
                               limits:
-                                memory: "2Gi"    # Increased: More memory for builds
-                                cpu: "2"         # Increased: More CPU for builds
+                                memory: "2Gi"
+                                cpu: "2"
+                            env:
+                            - name: STORAGE_DRIVER
+                              value: vfs
+                            - name: BUILDAH_ISOLATION
+                              value: chroot
                             volumeMounts:
-                            - name: podman-storage
-                              mountPath: /var/lib/containers
+                            - name: buildah-storage
+                              mountPath: /home/build/.local/share/containers
                           volumes:
-                          - name: podman-storage
+                          - name: buildah-storage
                             emptyDir: {}
                     '''
                 }
             }
             steps {
-                container('podman') {  // Added: Explicit container specification
+                container('buildah') {
                     withCredentials([usernamePassword(credentialsId: "${QUAY_CREDENTIALS_ID}", usernameVariable: 'QUAY_USER', passwordVariable: 'QUAY_PASS')]) {
                         sh '''
-                            echo "Logging into Quay.io with robot account..."
-                            podman login -u $QUAY_USER -p $QUAY_PASS quay.io
+                            echo "Setting up buildah for rootless builds..."
+                            buildah --storage-driver=vfs login -u $QUAY_USER -p $QUAY_PASS quay.io
                             
-                            echo "Building frontend image..."
-                            podman build -f ./frontend/Dockerfile -t ${FRONTEND_IMAGE} ./frontend
+                            echo "Building frontend image with rootless buildah..."
+                            buildah --storage-driver=vfs bud --isolation=chroot -f ./frontend/Dockerfile -t ${FRONTEND_IMAGE} ./frontend
                             
                             echo "Pushing frontend image to Quay.io..."
-                            podman push ${FRONTEND_IMAGE}
+                            buildah --storage-driver=vfs push ${FRONTEND_IMAGE}
                         '''
                     }
                 }
@@ -88,49 +93,54 @@ pipeline {
         stage('Build and Push Backend Image') {
             agent {
                 kubernetes {
-                    defaultContainer 'podman'  // Fixed: Changed from 'buildah' to 'podman'
+                    defaultContainer 'buildah'
                     yaml '''
                         apiVersion: v1
                         kind: Pod
                         spec:
                           serviceAccountName: jenkins
                           containers:
-                          - name: podman
-                            image: quay.io/podman/stable
+                          - name: buildah
+                            image: quay.io/buildah/stable:latest
                             command: ['cat']
                             tty: true
                             securityContext:
-                              runAsUser: 0
-                              allowPrivilegeEscalation: false
-                              privileged: true  # Added: Required for container builds
+                              runAsUser: 1000
+                              runAsGroup: 1000
+                              fsGroup: 1000
                             resources:
                               requests:
                                 memory: "512Mi"
                                 cpu: "500m"
                               limits:
-                                memory: "2Gi"    # Increased: More memory for builds
-                                cpu: "2"         # Increased: More CPU for builds
+                                memory: "2Gi"
+                                cpu: "2"
+                            env:
+                            - name: STORAGE_DRIVER
+                              value: vfs
+                            - name: BUILDAH_ISOLATION
+                              value: chroot
                             volumeMounts:
-                            - name: podman-storage
-                              mountPath: /var/lib/containers
+                            - name: buildah-storage
+                              mountPath: /home/build/.local/share/containers
                           volumes:
-                          - name: podman-storage
+                          - name: buildah-storage
                             emptyDir: {}
                     '''
                 }
             }
             steps {
-                container('podman') {  // Added: Explicit container specification
+                container('buildah') {
                     withCredentials([usernamePassword(credentialsId: "${QUAY_CREDENTIALS_ID}", usernameVariable: 'QUAY_USER', passwordVariable: 'QUAY_PASS')]) {
                         sh '''
-                            echo "Logging into Quay.io with robot account..."
-                            podman login -u $QUAY_USER -p $QUAY_PASS quay.io
+                            echo "Setting up buildah for rootless builds..."
+                            buildah --storage-driver=vfs login -u $QUAY_USER -p $QUAY_PASS quay.io
 
-                            echo "Building backend image..."
-                            podman build -f ./backend/Dockerfile -t ${BACKEND_IMAGE} ./backend
+                            echo "Building backend image with rootless buildah..."
+                            buildah --storage-driver=vfs bud --isolation=chroot -f ./backend/Dockerfile -t ${BACKEND_IMAGE} ./backend
 
                             echo "Pushing backend image to Quay.io..."
-                            podman push ${BACKEND_IMAGE}
+                            buildah --storage-driver=vfs push ${BACKEND_IMAGE}
                         '''
                     }
                 }
@@ -159,8 +169,8 @@ pipeline {
                         oc expose svc/job-backend
 
                         echo "Deployment completed successfully"
-                        echo "Frontend route: $(oc get route job-frontend -o jsonpath='{.spec.host}')"
-                        echo "Backend route: $(oc get route job-backend -o jsonpath='{.spec.host}')"
+                        echo "Frontend route: $(oc get route job-frontend -o jsonpath='{.spec.host}' 2>/dev/null || echo 'Route not ready yet')"
+                        echo "Backend route: $(oc get route job-backend -o jsonpath='{.spec.host}' 2>/dev/null || echo 'Route not ready yet')"
                     '''
                 }
             }
