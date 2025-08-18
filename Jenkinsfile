@@ -44,7 +44,7 @@ pipeline {
                           serviceAccountName: jenkins
                           containers:
                           - name: podman
-                            image: quay.io/podman/stable:v1.34
+                            image: quay.io/podman/stable
                             command: ['cat']
                             tty: true
                             securityContext:
@@ -87,7 +87,7 @@ pipeline {
                           serviceAccountName: jenkins
                           containers:
                           - name: podman
-                            image: quay.io/podman/stable:v1.34
+                            image: quay.io/podman/stable
                             command: ['cat']
                             tty: true
                             securityContext:
