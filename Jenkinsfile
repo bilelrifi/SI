@@ -76,11 +76,37 @@ pipeline {
                 container('buildah') {
                     withCredentials([usernamePassword(credentialsId: "${QUAY_CREDENTIALS_ID}", usernameVariable: 'QUAY_USER', passwordVariable: 'QUAY_PASS')]) {
                         sh '''
+                            echo "=== DEBUGGING WORKSPACE STRUCTURE ==="
+                            pwd
+                            ls -la
+                            echo "=== CHECKING FOR FRONTEND DIRECTORY ==="
+                            ls -la frontend/ || echo "Frontend directory not found"
+                            find . -name "Dockerfile" -type f || echo "No Dockerfiles found"
+                            echo "=== END DEBUG ==="
+                            
                             echo "Setting up buildah for rootless builds..."
                             buildah --storage-driver=vfs login -u $QUAY_USER -p $QUAY_PASS quay.io
                             
+                            # Check if Containerfile exists in expected location
+                            if [ -f "./frontend/Containerfile" ]; then
+                                echo "Found Containerfile at ./frontend/Containerfile"
+                                DOCKERFILE_PATH="./frontend/Containerfile"
+                                BUILD_CONTEXT="./frontend"
+                            elif [ -f "./frontend/Dockerfile" ]; then
+                                echo "Found Dockerfile at ./frontend/Dockerfile"
+                                DOCKERFILE_PATH="./frontend/Dockerfile"
+                                BUILD_CONTEXT="./frontend"
+                            else
+                                echo "ERROR: No Containerfile or Dockerfile found in frontend directory!"
+                                ls -la ./frontend/ || echo "Frontend directory not found"
+                                exit 1
+                            fi
+                            
                             echo "Building frontend image with rootless buildah..."
-                            buildah --storage-driver=vfs bud --isolation=chroot -f ./frontend/Dockerfile -t ${FRONTEND_IMAGE} ./frontend
+                            echo "Using Containerfile: $DOCKERFILE_PATH"
+                            echo "Using build context: $BUILD_CONTEXT"
+                            
+                            buildah --storage-driver=vfs bud --isolation=chroot -f $DOCKERFILE_PATH -t ${FRONTEND_IMAGE} $BUILD_CONTEXT
                             
                             echo "Pushing frontend image to Quay.io..."
                             buildah --storage-driver=vfs push ${FRONTEND_IMAGE}
@@ -133,11 +159,33 @@ pipeline {
                 container('buildah') {
                     withCredentials([usernamePassword(credentialsId: "${QUAY_CREDENTIALS_ID}", usernameVariable: 'QUAY_USER', passwordVariable: 'QUAY_PASS')]) {
                         sh '''
+                            echo "=== DEBUGGING BACKEND STRUCTURE ==="
+                            ls -la backend/ || echo "Backend directory not found"
+                            echo "=== END DEBUG ==="
+                            
                             echo "Setting up buildah for rootless builds..."
                             buildah --storage-driver=vfs login -u $QUAY_USER -p $QUAY_PASS quay.io
 
+                            # Check if backend Containerfile exists
+                            if [ -f "./backend/Containerfile" ]; then
+                                echo "Found backend Containerfile at ./backend/Containerfile"
+                                DOCKERFILE_PATH="./backend/Containerfile"
+                                BUILD_CONTEXT="./backend"
+                            elif [ -f "./backend/Dockerfile" ]; then
+                                echo "Found backend Dockerfile at ./backend/Dockerfile"
+                                DOCKERFILE_PATH="./backend/Dockerfile"
+                                BUILD_CONTEXT="./backend"
+                            else
+                                echo "ERROR: No backend Containerfile or Dockerfile found!"
+                                ls -la ./backend/ || echo "Backend directory not found"
+                                exit 1
+                            fi
+
                             echo "Building backend image with rootless buildah..."
-                            buildah --storage-driver=vfs bud --isolation=chroot -f ./backend/Dockerfile -t ${BACKEND_IMAGE} ./backend
+                            echo "Using Containerfile: $DOCKERFILE_PATH"
+                            echo "Using build context: $BUILD_CONTEXT"
+                            
+                            buildah --storage-driver=vfs bud --isolation=chroot -f $DOCKERFILE_PATH -t ${BACKEND_IMAGE} $BUILD_CONTEXT
 
                             echo "Pushing backend image to Quay.io..."
                             buildah --storage-driver=vfs push ${BACKEND_IMAGE}
