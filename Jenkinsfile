@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         PROJECT_NAME = "gamma"
-        OPENSHIFT_SERVER = "https://api.ocp.smartek.ae:6443"
+        OPENSHIFT_SERVER = "https://api.ocp4.smartek.ae:6443"
 
         QUAY_CREDENTIALS_ID = 'ce45edfb-ce9a-42be-aa16-afea0bdc5dfc'
         OC_TOKEN_ID = 'oc-token-id'
