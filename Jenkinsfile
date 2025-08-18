@@ -44,7 +44,7 @@ pipeline {
                           serviceAccountName: jenkins
                           containers:
                           - name: buildah
-                            image: quay.io/buildah/buildah:v1.34
+                            image: quay.io/buildah/stable:v1.34
                             command: ['cat']
                             tty: true
                             securityContext:
@@ -87,7 +87,7 @@ pipeline {
                           serviceAccountName: jenkins
                           containers:
                           - name: buildah
-                            image: quay.io/buildah/buildah:v1.34
+                            image: quay.io/buildah/stable:v1.34
                             command: ['cat']
                             tty: true
                             securityContext:
