@@ -48,9 +48,8 @@ pipeline {
                             command: ['cat']
                             tty: true
                             securityContext:
-                              runAsUser: 1000
-                              runAsGroup: 1000
-                              fsGroup: 1000
+                              privileged: true
+                              runAsUser: 0
                             resources:
                               requests:
                                 memory: "512Mi"
@@ -60,12 +59,10 @@ pipeline {
                                 cpu: "2"
                             env:
                             - name: STORAGE_DRIVER
-                              value: vfs
-                            - name: BUILDAH_ISOLATION
-                              value: chroot
+                              value: overlay
                             volumeMounts:
                             - name: buildah-storage
-                              mountPath: /home/build/.local/share/containers
+                              mountPath: /var/lib/containers
                           volumes:
                           - name: buildah-storage
                             emptyDir: {}
@@ -76,40 +73,40 @@ pipeline {
                 container('buildah') {
                     withCredentials([usernamePassword(credentialsId: "${QUAY_CREDENTIALS_ID}", usernameVariable: 'QUAY_USER', passwordVariable: 'QUAY_PASS')]) {
                         sh '''
-                            echo "=== DEBUGGING WORKSPACE STRUCTURE ==="
-                            pwd
-                            ls -la
-                            echo "=== CHECKING FOR FRONTEND DIRECTORY ==="
+                            echo "=== CHECKING FRONTEND STRUCTURE ==="
                             ls -la frontend/ || echo "Frontend directory not found"
-                            find . -name "Dockerfile" -type f || echo "No Dockerfiles found"
-                            echo "=== END DEBUG ==="
                             
-                            echo "Setting up buildah for rootless builds..."
-                            buildah --storage-driver=vfs login -u $QUAY_USER -p $QUAY_PASS quay.io
+                            echo "Setting up buildah for privileged builds..."
+                            buildah login -u $QUAY_USER -p $QUAY_PASS quay.io
                             
-                            # Check if Containerfile exists in expected location
+                            # Check for Containerfile
                             if [ -f "./frontend/Containerfile" ]; then
                                 echo "Found Containerfile at ./frontend/Containerfile"
                                 DOCKERFILE_PATH="./frontend/Containerfile"
                                 BUILD_CONTEXT="./frontend"
-                            elif [ -f "./frontend/Dockerfile" ]; then
-                                echo "Found Dockerfile at ./frontend/Dockerfile"
-                                DOCKERFILE_PATH="./frontend/Dockerfile"
-                                BUILD_CONTEXT="./frontend"
                             else
-                                echo "ERROR: No Containerfile or Dockerfile found in frontend directory!"
-                                ls -la ./frontend/ || echo "Frontend directory not found"
+                                echo "ERROR: No Containerfile found in frontend directory!"
+                                ls -la ./frontend/
                                 exit 1
                             fi
                             
-                            echo "Building frontend image with rootless buildah..."
+                            echo "Building frontend image with privileged buildah..."
                             echo "Using Containerfile: $DOCKERFILE_PATH"
                             echo "Using build context: $BUILD_CONTEXT"
                             
-                            buildah --storage-driver=vfs bud --isolation=chroot -f $DOCKERFILE_PATH -t ${FRONTEND_IMAGE} $BUILD_CONTEXT
+                            # Set build arguments for frontend
+                            VITE_API_BASE_URL="http://job-backend-jenkins.apps.ocp4.smartek.ae"
+                            
+                            buildah bud \
+                                --build-arg VITE_API_BASE_URL="$VITE_API_BASE_URL" \
+                                --layers=false \
+                                --force-rm \
+                                -f $DOCKERFILE_PATH \
+                                -t ${FRONTEND_IMAGE} \
+                                $BUILD_CONTEXT
                             
                             echo "Pushing frontend image to Quay.io..."
-                            buildah --storage-driver=vfs push ${FRONTEND_IMAGE}
+                            buildah push ${FRONTEND_IMAGE}
                         '''
                     }
                 }
@@ -131,9 +128,8 @@ pipeline {
                             command: ['cat']
                             tty: true
                             securityContext:
-                              runAsUser: 1000
-                              runAsGroup: 1000
-                              fsGroup: 1000
+                              privileged: true
+                              runAsUser: 0
                             resources:
                               requests:
                                 memory: "512Mi"
@@ -143,12 +139,10 @@ pipeline {
                                 cpu: "2"
                             env:
                             - name: STORAGE_DRIVER
-                              value: vfs
-                            - name: BUILDAH_ISOLATION
-                              value: chroot
+                              value: overlay
                             volumeMounts:
                             - name: buildah-storage
-                              mountPath: /home/build/.local/share/containers
+                              mountPath: /var/lib/containers
                           volumes:
                           - name: buildah-storage
                             emptyDir: {}
@@ -159,36 +153,36 @@ pipeline {
                 container('buildah') {
                     withCredentials([usernamePassword(credentialsId: "${QUAY_CREDENTIALS_ID}", usernameVariable: 'QUAY_USER', passwordVariable: 'QUAY_PASS')]) {
                         sh '''
-                            echo "=== DEBUGGING BACKEND STRUCTURE ==="
+                            echo "=== CHECKING BACKEND STRUCTURE ==="
                             ls -la backend/ || echo "Backend directory not found"
-                            echo "=== END DEBUG ==="
                             
-                            echo "Setting up buildah for rootless builds..."
-                            buildah --storage-driver=vfs login -u $QUAY_USER -p $QUAY_PASS quay.io
+                            echo "Setting up buildah for privileged builds..."
+                            buildah login -u $QUAY_USER -p $QUAY_PASS quay.io
 
-                            # Check if backend Containerfile exists
+                            # Check for backend Containerfile
                             if [ -f "./backend/Containerfile" ]; then
                                 echo "Found backend Containerfile at ./backend/Containerfile"
                                 DOCKERFILE_PATH="./backend/Containerfile"
                                 BUILD_CONTEXT="./backend"
-                            elif [ -f "./backend/Dockerfile" ]; then
-                                echo "Found backend Dockerfile at ./backend/Dockerfile"
-                                DOCKERFILE_PATH="./backend/Dockerfile"
-                                BUILD_CONTEXT="./backend"
                             else
-                                echo "ERROR: No backend Containerfile or Dockerfile found!"
-                                ls -la ./backend/ || echo "Backend directory not found"
+                                echo "ERROR: No backend Containerfile found!"
+                                ls -la ./backend/
                                 exit 1
                             fi
 
-                            echo "Building backend image with rootless buildah..."
+                            echo "Building backend image with privileged buildah..."
                             echo "Using Containerfile: $DOCKERFILE_PATH"
                             echo "Using build context: $BUILD_CONTEXT"
                             
-                            buildah --storage-driver=vfs bud --isolation=chroot -f $DOCKERFILE_PATH -t ${BACKEND_IMAGE} $BUILD_CONTEXT
+                            buildah bud \
+                                --layers=false \
+                                --force-rm \
+                                -f $DOCKERFILE_PATH \
+                                -t ${BACKEND_IMAGE} \
+                                $BUILD_CONTEXT
 
                             echo "Pushing backend image to Quay.io..."
-                            buildah --storage-driver=vfs push ${BACKEND_IMAGE}
+                            buildah push ${BACKEND_IMAGE}
                         '''
                     }
                 }
