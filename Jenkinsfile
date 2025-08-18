@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        PROJECT_NAME = "gamma"
+        PROJECT_NAME = "jenkins"
         OPENSHIFT_SERVER = "https://api.ocp4.smartek.ae:6443"
 
         QUAY_CREDENTIALS_ID = 'ce45edfb-ce9a-42be-aa16-afea0bdc5dfc'
