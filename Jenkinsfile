@@ -64,13 +64,13 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: "${QUAY_CREDENTIALS_ID}", usernameVariable: 'QUAY_USER', passwordVariable: 'QUAY_PASS')]) {
                     sh '''
                         echo "Logging into Quay.io with robot account..."
-                        buildah login -u $QUAY_USER -p $QUAY_PASS quay.io
+                        buildah --storage-driver=vfs login -u $QUAY_USER -p $QUAY_PASS quay.io
                         
                         echo "Building frontend image with Buildah..."
-                        buildah bud --storage-driver=vfs -f ./frontend/Dockerfile -t ${FRONTEND_IMAGE} ./frontend
+                        buildah --storage-driver=vfs bud -f ./frontend/Dockerfile -t ${FRONTEND_IMAGE} ./frontend
                         
                         echo "Pushing frontend image to Quay.io..."
-                        buildah push ${FRONTEND_IMAGE}
+                        buildah --storage-driver=vfs push ${FRONTEND_IMAGE}
                     '''
                 }
             }
@@ -87,7 +87,7 @@ pipeline {
                           serviceAccountName: jenkins
                           containers:
                           - name: buildah
-                            image: quay.io/podman/stable:latest
+                            image: quay.io/buildah/stable:v1.34
                             command: ['/bin/cat']
                             tty: true
                             securityContext:
@@ -107,13 +107,13 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: "${QUAY_CREDENTIALS_ID}", usernameVariable: 'QUAY_USER', passwordVariable: 'QUAY_PASS')]) {
                     sh '''
                         echo "Logging into Quay.io with robot account..."
-                        buildah login -u $QUAY_USER -p $QUAY_PASS quay.io
+                        buildah --storage-driver=vfs login -u $QUAY_USER -p $QUAY_PASS quay.io
 
                         echo "Building backend image with Buildah..."
-                        buildah bud --storage-driver=vfs -f ./backend/Dockerfile -t ${BACKEND_IMAGE} ./backend
+                        buildah --storage-driver=vfs bud --storage-driver=vfs -f ./backend/Dockerfile -t ${BACKEND_IMAGE} ./backend
 
                         echo "Pushing backend image to Quay.io..."
-                        buildah push ${BACKEND_IMAGE}
+                        buildah --storage-driver=vfs push ${BACKEND_IMAGE}
                     '''
                 }
             }
