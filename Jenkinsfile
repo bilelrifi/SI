@@ -252,6 +252,14 @@ EOF
                             echo "Using build context: $BUILD_CONTEXT"
                             
                             buildah bud \
+                                --build-arg MONGO_URL="mongodb://localhost:27017/job_portal" \
+                                --build-arg MONGO_INITDB_ROOT_USERNAME="admin" \
+                                --build-arg MONGO_INITDB_ROOT_PASSWORD="admin" \
+                                --build-arg SECRET_KEY="HarHarMahadev" \
+                                --build-arg CORS_ORIGIN="http://job-backend-jenkins.apps.ocp4.smartek.ae" \
+                                --build-arg CLOUD_NAME="dq8ariioz" \
+                                --build-arg API_KEY="858319527567711" \
+                                --build-arg API_SECRET="zvNVBmcA32j7XWdPaFJOeit-5ow" \
                                 --layers=false \
                                 --force-rm \
                                 --pull-always \
@@ -290,7 +298,15 @@ EOF
 
                         # Deploy backend  
                         echo "Deploying backend..."
-                        oc new-app ${BACKEND_IMAGE} --name=job-backend
+                        oc new-app ${BACKEND_IMAGE} --name=job-backend \
+                            -e MONGO_URL="mongodb://localhost:27017/job_portal" \
+                            -e MONGO_INITDB_ROOT_USERNAME="admin" \
+                            -e MONGO_INITDB_ROOT_PASSWORD="admin" \
+                            -e SECRET_KEY="HarHarMahadev" \
+                            -e CORS_ORIGIN="http://job-backend-jenkins.apps.ocp4.smartek.ae" \
+                            -e CLOUD_NAME="dq8ariioz" \
+                            -e API_KEY="858319527567711" \
+                            -e API_SECRET="zvNVBmcA32j7XWdPaFJOeit-5ow"
                         oc expose svc/job-backend
 
                         echo "Waiting for deployments..."
