@@ -44,11 +44,11 @@ pipeline {
                           serviceAccountName: jenkins
                           containers:
                           - name: buildah
-                            image: quay.io/buildah/stable:v1.34
-                            command: ['/bin/cat']
+                            image: quay.io/buildah/buildah:v1.34
+                            command: ['cat']
                             tty: true
                             securityContext:
-                              # The runAsUser is removed. OpenShift will assign one automatically.
+                              runAsUser: 0
                               allowPrivilegeEscalation: false
                             resources:
                               requests:
@@ -87,11 +87,11 @@ pipeline {
                           serviceAccountName: jenkins
                           containers:
                           - name: buildah
-                            image: quay.io/buildah/stable:v1.34
-                            command: ['/bin/cat']
+                            image: quay.io/buildah/buildah:v1.34
+                            command: ['cat']
                             tty: true
                             securityContext:
-                              # The runAsUser is removed. OpenShift will assign one automatically.
+                              runAsUser: 0
                               allowPrivilegeEscalation: false
                             resources:
                               requests:
