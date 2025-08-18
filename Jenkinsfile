@@ -44,7 +44,7 @@ pipeline {
                           serviceAccountName: jenkins
                           containers:
                           - name: buildah
-                            image: quay.io/podman/stable:latest
+                            image: quay.io/buildah/stable:v1.34
                             command: ['/bin/cat']
                             tty: true
                             securityContext:
