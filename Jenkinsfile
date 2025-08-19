@@ -17,7 +17,6 @@ pipeline {
         CLOUDINARY_API_KEY_CRED_ID = 'cloudinary-api-key-cred'
         CLOUDINARY_API_SECRET_CRED_ID = 'cloudinary-api-secret-cred'
         BACKEND_SERVICE_URL_CRED_ID = 'backend-service-url-cred'
-        HELM_CHART_PATH_CRED_ID = 'helm-chart-path-cred'
 
         FRONTEND_IMAGE = "quay.io/bilelrifi/job-portal-frontend:${BUILD_NUMBER}"
         BACKEND_IMAGE = "quay.io/bilelrifi/job-portal-backend:${BUILD_NUMBER}"
@@ -37,7 +36,17 @@ pipeline {
                     sh '''
                         echo "Logging into OpenShift with token..."
                         oc login --token=$OC_TOKEN --server=${OPENSHIFT_SERVER} --insecure-skip-tls-verify
-                        oc project ${PROJECT_NAME}
+                        
+                        # Check if project exists, create if not
+                        if oc get project ${PROJECT_NAME} >/dev/null 2>&1; then
+                            echo "Project ${PROJECT_NAME} already exists"
+                            oc project ${PROJECT_NAME}
+                        else
+                            echo "Project ${PROJECT_NAME} does not exist, creating it..."
+                            oc new-project ${PROJECT_NAME}
+                            echo "Project ${PROJECT_NAME} created successfully"
+                        fi
+                        
                         echo "Successfully logged in to project: ${PROJECT_NAME}"
                     '''
                 }
@@ -300,7 +309,6 @@ pipeline {
         //     steps {
         //         withCredentials([
         //             string(credentialsId: "${OC_TOKEN_ID}", variable: 'OC_TOKEN'),
-        //             string(credentialsId: "${HELM_CHART_PATH_CRED_ID}", variable: 'HELM_CHART_PATH'),
         //             string(credentialsId: "${MONGO_URL_CRED_ID}", variable: 'MONGO_URL'),
         //             string(credentialsId: "${MONGO_USERNAME_CRED_ID}", variable: 'MONGO_USERNAME'),
         //             string(credentialsId: "${MONGO_PASSWORD_CRED_ID}", variable: 'MONGO_PASSWORD'),
@@ -315,21 +323,34 @@ pipeline {
         //                 oc login --token=$OC_TOKEN --server=${OPENSHIFT_SERVER} --insecure-skip-tls-verify
         //                 oc project ${PROJECT_NAME}
 
-        //                 # Install or upgrade the Helm release
-        //                 helm upgrade --install job-portal $HELM_CHART_PATH \
-        //                     --set frontend.image.repository=quay.io/bilelrifi/job-portal-frontend \
-        //                     --set frontend.image.tag=${BUILD_NUMBER} \
-        //                     --set backend.image.repository=quay.io/bilelrifi/job-portal-backend \
-        //                     --set backend.image.tag=${BUILD_NUMBER} \
-        //                     --set backend.env.MONGO_URL="$MONGO_URL" \
-        //                     --set backend.env.MONGO_INITDB_ROOT_USERNAME="$MONGO_USERNAME" \
-        //                     --set backend.env.MONGO_INITDB_ROOT_PASSWORD="$MONGO_PASSWORD" \
-        //                     --set backend.env.SECRET_KEY="$SECRET_KEY" \
-        //                     --set backend.env.CORS_ORIGIN="$BACKEND_SERVICE_URL" \
-        //                     --set backend.env.CLOUD_NAME="$CLOUD_NAME" \
-        //                     --set backend.env.API_KEY="$API_KEY" \
-        //                     --set backend.env.API_SECRET="$API_SECRET" \
-        //                     --set frontend.env.VITE_API_BASE_URL="$BACKEND_SERVICE_URL" \
+        //                 # Determine environment and values file
+        //                 ENVIRONMENT="${ENVIRONMENT:-development}"
+        //                 VALUES_FILE="./values.${ENVIRONMENT}.yaml"
+        //                 
+        //                 # Check if environment-specific values file exists, fallback to default
+        //                 if [ ! -f "$VALUES_FILE" ]; then
+        //                     echo "Environment-specific values file $VALUES_FILE not found, using default values.yaml"
+        //                     VALUES_FILE="./values.yaml"
+        //                 fi
+        //                 
+        //                 echo "Using values file: $VALUES_FILE"
+
+        //                 # Install or upgrade the Helm release using local chart
+        //                 helm upgrade --install job-portal . \
+        //                     -f $VALUES_FILE \
+        //                     --set-string frontend.image.repository=quay.io/bilelrifi/job-portal-frontend \
+        //                     --set-string frontend.image.tag=${BUILD_NUMBER} \
+        //                     --set-string backend.image.repository=quay.io/bilelrifi/job-portal-backend \
+        //                     --set-string backend.image.tag=${BUILD_NUMBER} \
+        //                     --set-string backend.env.MONGO_URL="$MONGO_URL" \
+        //                     --set-string backend.env.MONGO_INITDB_ROOT_USERNAME="$MONGO_USERNAME" \
+        //                     --set-string backend.env.MONGO_INITDB_ROOT_PASSWORD="$MONGO_PASSWORD" \
+        //                     --set-string backend.env.SECRET_KEY="$SECRET_KEY" \
+        //                     --set-string backend.env.CORS_ORIGIN="$BACKEND_SERVICE_URL" \
+        //                     --set-string backend.env.CLOUD_NAME="$CLOUD_NAME" \
+        //                     --set-string backend.env.API_KEY="$API_KEY" \
+        //                     --set-string backend.env.API_SECRET="$API_SECRET" \
+        //                     --set-string frontend.env.VITE_API_BASE_URL="$BACKEND_SERVICE_URL" \
         //                     --namespace ${PROJECT_NAME} \
         //                     --wait \
         //                     --timeout=300s
