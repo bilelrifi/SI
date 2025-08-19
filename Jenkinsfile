@@ -1,5 +1,43 @@
 pipeline {
-    agent any
+    agent {
+        kubernetes {
+            defaultContainer 'buildah'
+            yaml '''
+                apiVersion: v1
+                kind: Pod
+                spec:
+                  serviceAccountName: jenkins
+                  containers:
+                  - name: buildah
+                    image: quay.io/buildah/stable:latest
+                    command: ['cat']
+                    tty: true
+                    securityContext:
+                      privileged: true
+                      runAsUser: 0
+                    resources:
+                      requests:
+                        memory: "1Gi"
+                        cpu: "500m"
+                      limits:
+                        memory: "3Gi"
+                        cpu: "2"
+                    env:
+                    - name: STORAGE_DRIVER
+                      value: overlay
+                    volumeMounts:
+                    - name: buildah-storage
+                      mountPath: /var/lib/containers
+                  - name: helm
+                    image: quay.io/helmpack/chart-testing:latest
+                    command: ['cat']
+                    tty: true
+                  volumes:
+                  - name: buildah-storage
+                    emptyDir: {}
+            '''
+        }
+    }
 
     environment {
         PROJECT_NAME = "jenkins"
@@ -7,106 +45,56 @@ pipeline {
 
         QUAY_CREDENTIALS_ID = 'ce45edfb-ce9a-42be-aa16-afea0bdc5dfc'
         OC_TOKEN_ID = 'oc-token-id'
+        
+        // Credential IDs for environment variables
+        MONGO_URL_CRED_ID = 'mongo-url-cred'
+        MONGO_USERNAME_CRED_ID = 'mongo-username-cred'
+        MONGO_PASSWORD_CRED_ID = 'mongo-password-cred'
+        SECRET_KEY_CRED_ID = 'secret-key-cred'
+        CLOUD_NAME_CRED_ID = 'cloudinary-cloud-name-cred'
+        CLOUDINARY_API_KEY_CRED_ID = 'cloudinary-api-key-cred'
+        CLOUDINARY_API_SECRET_CRED_ID = 'cloudinary-api-secret-cred'
+        //HELM_CHART_PATH_CRED_ID = 'helm-chart-path-cred'
 
         FRONTEND_IMAGE = "quay.io/bilelrifi/job-portal-frontend:${BUILD_NUMBER}"
         BACKEND_IMAGE = "quay.io/bilelrifi/job-portal-backend:${BUILD_NUMBER}"
+        
+        // Service URL for internal communication 
+        BACKEND_SERVICE_URL = "http://job-backend-jenkins.apps.ocp4.smartek.ae"
     }
 
     stages {
         stage('Clone Repo') {
             steps {
-                checkout scm
+                container('buildah') {
+                    checkout scm
+                }
             }
         }
 
         stage('Login to OpenShift & Quay.io') {
             steps {
-                withCredentials([string(credentialsId: "${OC_TOKEN_ID}", variable: 'OC_TOKEN'),
-                                 usernamePassword(credentialsId: "${QUAY_CREDENTIALS_ID}", usernameVariable: 'QUAY_USER', passwordVariable: 'QUAY_PASS')]) {
-                    sh '''
-                        echo "Logging into OpenShift with token..."
-                        oc login --token=$OC_TOKEN --server=${OPENSHIFT_SERVER} --insecure-skip-tls-verify
-                        oc project ${PROJECT_NAME}
-                        echo "Successfully logged in to project: ${PROJECT_NAME}"
-                    '''
+                container('buildah') {
+                    withCredentials([string(credentialsId: "${OC_TOKEN_ID}", variable: 'OC_TOKEN'),
+                                     usernamePassword(credentialsId: "${QUAY_CREDENTIALS_ID}", usernameVariable: 'QUAY_USER', passwordVariable: 'QUAY_PASS')]) {
+                        sh '''
+                            echo "Logging into OpenShift with token..."
+                            oc login --token=$OC_TOKEN --server=${OPENSHIFT_SERVER} --insecure-skip-tls-verify
+                            oc project ${PROJECT_NAME}
+                            echo "Successfully logged in to project: ${PROJECT_NAME}"
+                        '''
+                    }
                 }
             }
         }
 
         stage('Build and Push Frontend Image') {
-            agent {
-                kubernetes {
-                    defaultContainer 'buildah'
-                    yaml '''
-                        apiVersion: v1
-                        kind: Pod
-                        spec:
-                          serviceAccountName: jenkins
-                          containers:
-                          - name: buildah
-                            image: quay.io/buildah/stable:latest
-                            command: ['cat']
-                            tty: true
-                            securityContext:
-                              privileged: true
-                              runAsUser: 0
-                            resources:
-                              requests:
-                                memory: "1Gi"
-                                cpu: "500m"
-                              limits:
-                                memory: "3Gi"
-                                cpu: "2"
-                            env:
-                            - name: STORAGE_DRIVER
-                              value: overlay
-                            volumeMounts:
-                            - name: buildah-storage
-                              mountPath: /var/lib/containers
-                          volumes:
-                          - name: buildah-storage
-                            emptyDir: {}
-                    '''
-                }
-            }
             steps {
                 container('buildah') {
                     withCredentials([usernamePassword(credentialsId: "${QUAY_CREDENTIALS_ID}", usernameVariable: 'QUAY_USER', passwordVariable: 'QUAY_PASS')]) {
                         sh '''
                             echo "=== CHECKING FRONTEND STRUCTURE ==="
                             ls -la frontend/
-                            
-                            echo "Setting up buildah and registries..."
-                            
-                            # Create registries configuration directory
-                            mkdir -p /etc/containers/registries.conf.d
-                            
-                            # Configure container registries for short name resolution
-                            cat > /etc/containers/registries.conf << EOF
-[registries.search]
-registries = ['docker.io', 'quay.io', 'registry.access.redhat.com']
-
-[registries.insecure]
-registries = []
-
-[registries.block]
-registries = []
-EOF
-                            
-                            # Set up short name aliases
-                            cat > /etc/containers/registries.conf.d/000-shortnames.conf << EOF
-[aliases]
-"nginx" = "docker.io/library/nginx"
-"node" = "docker.io/library/node"
-"alpine" = "docker.io/library/alpine"
-"ubuntu" = "docker.io/library/ubuntu"
-"debian" = "docker.io/library/debian"
-"centos" = "docker.io/library/centos"
-"redis" = "docker.io/library/redis"
-"postgres" = "docker.io/library/postgres"
-"mysql" = "docker.io/library/mysql"
-"mongo" = "docker.io/library/mongo"
-EOF
                             
                             buildah login -u $QUAY_USER -p $QUAY_PASS quay.io
                             
@@ -134,11 +122,8 @@ EOF
                             echo "Using Containerfile: $DOCKERFILE_PATH"
                             echo "Using build context: $BUILD_CONTEXT"
                             
-                            # Set build arguments for frontend
-                            VITE_API_BASE_URL="http://job-backend-jenkins.apps.ocp4.smartek.ae"
-                            
                             buildah bud \
-                                --build-arg VITE_API_BASE_URL="$VITE_API_BASE_URL" \
+                                --build-arg VITE_API_BASE_URL="${BACKEND_SERVICE_URL}" \
                                 --layers=false \
                                 --force-rm \
                                 --pull-always \
@@ -155,75 +140,21 @@ EOF
         }
         
         stage('Build and Push Backend Image') {
-            agent {
-                kubernetes {
-                    defaultContainer 'buildah'
-                    yaml '''
-                        apiVersion: v1
-                        kind: Pod
-                        spec:
-                          serviceAccountName: jenkins
-                          containers:
-                          - name: buildah
-                            image: quay.io/buildah/stable:latest
-                            command: ['cat']
-                            tty: true
-                            securityContext:
-                              privileged: true
-                              runAsUser: 0
-                            resources:
-                              requests:
-                                memory: "1Gi"
-                                cpu: "500m"
-                              limits:
-                                memory: "3Gi"
-                                cpu: "2"
-                            env:
-                            - name: STORAGE_DRIVER
-                              value: overlay
-                            volumeMounts:
-                            - name: buildah-storage
-                              mountPath: /var/lib/containers
-                          volumes:
-                          - name: buildah-storage
-                            emptyDir: {}
-                    '''
-                }
-            }
             steps {
                 container('buildah') {
-                    withCredentials([usernamePassword(credentialsId: "${QUAY_CREDENTIALS_ID}", usernameVariable: 'QUAY_USER', passwordVariable: 'QUAY_PASS')]) {
+                    withCredentials([
+                        usernamePassword(credentialsId: "${QUAY_CREDENTIALS_ID}", usernameVariable: 'QUAY_USER', passwordVariable: 'QUAY_PASS'),
+                        string(credentialsId: "${MONGO_URL_CRED_ID}", variable: 'MONGO_URL'),
+                        string(credentialsId: "${MONGO_USERNAME_CRED_ID}", variable: 'MONGO_USERNAME'),
+                        string(credentialsId: "${MONGO_PASSWORD_CRED_ID}", variable: 'MONGO_PASSWORD'),
+                        string(credentialsId: "${SECRET_KEY_CRED_ID}", variable: 'SECRET_KEY'),
+                        string(credentialsId: "${CLOUD_NAME_CRED_ID}", variable: 'CLOUD_NAME'),
+                        string(credentialsId: "${CLOUDINARY_API_KEY_CRED_ID}", variable: 'API_KEY'),
+                        string(credentialsId: "${CLOUDINARY_API_SECRET_CRED_ID}", variable: 'API_SECRET')
+                    ]) {
                         sh '''
                             echo "=== CHECKING BACKEND STRUCTURE ==="
                             ls -la backend/
-                            
-                            echo "Setting up buildah and registries..."
-                            
-                            # Create registries configuration directory
-                            mkdir -p /etc/containers/registries.conf.d
-                            
-                            # Configure container registries
-                            cat > /etc/containers/registries.conf << EOF
-[registries.search]
-registries = ['docker.io', 'quay.io', 'registry.access.redhat.com']
-
-[registries.insecure]
-registries = []
-
-[registries.block]
-registries = []
-EOF
-                            
-                            # Set up short name aliases
-                            cat > /etc/containers/registries.conf.d/000-shortnames.conf << EOF
-[aliases]
-"nginx" = "docker.io/library/nginx"
-"node" = "docker.io/library/node"
-"alpine" = "docker.io/library/alpine"
-"ubuntu" = "docker.io/library/ubuntu"
-"debian" = "docker.io/library/debian"
-"python" = "docker.io/library/python"
-EOF
                             
                             buildah login -u $QUAY_USER -p $QUAY_PASS quay.io
 
@@ -233,7 +164,7 @@ EOF
                                 
                                 # Create a temporary fixed Containerfile
                                 echo "Creating fixed Containerfile with fully qualified image names..."
-                                sed 's|FROM node:|FROM docker.io/library/node:|g; s|FROM alpine|FROM docker.io/library/alpine|g; s|FROM ubuntu|FROM docker.io/library/ubuntu|g; s|FROM debian|FROM docker.io/library/debian|g; s|FROM python:|FROM docker.io/library/python:|g' ./backend/Containerfile > ./backend/Containerfile.fixed
+                                sed 's|FROM node:|FROM docker.io/library/node:|g; s|FROM alpine|FROM docker.io/library/alpine|g' ./backend/Containerfile > ./backend/Containerfile.fixed
                                 
                                 DOCKERFILE_PATH="./backend/Containerfile.fixed"
                                 BUILD_CONTEXT="./backend"
@@ -252,14 +183,14 @@ EOF
                             echo "Using build context: $BUILD_CONTEXT"
                             
                             buildah bud \
-                                --build-arg MONGO_URL="mongodb://localhost:27017/job_portal" \
-                                --build-arg MONGO_INITDB_ROOT_USERNAME="admin" \
-                                --build-arg MONGO_INITDB_ROOT_PASSWORD="admin" \
-                                --build-arg SECRET_KEY="HarHarMahadev" \
-                                --build-arg CORS_ORIGIN="http://job-backend-jenkins.apps.ocp4.smartek.ae" \
-                                --build-arg CLOUD_NAME="dq8ariioz" \
-                                --build-arg API_KEY="858319527567711" \
-                                --build-arg API_SECRET="zvNVBmcA32j7XWdPaFJOeit-5ow" \
+                                --build-arg MONGO_URL="$MONGO_URL" \
+                                --build-arg MONGO_INITDB_ROOT_USERNAME="$MONGO_USERNAME" \
+                                --build-arg MONGO_INITDB_ROOT_PASSWORD="$MONGO_PASSWORD" \
+                                --build-arg SECRET_KEY="$SECRET_KEY" \
+                                --build-arg CORS_ORIGIN="${BACKEND_SERVICE_URL}" \
+                                --build-arg CLOUD_NAME="$CLOUD_NAME" \
+                                --build-arg API_KEY="$API_KEY" \
+                                --build-arg API_SECRET="$API_SECRET" \
                                 --layers=false \
                                 --force-rm \
                                 --pull-always \
@@ -276,55 +207,117 @@ EOF
         }
 
         stage('Deploy Applications') {
-            agent any
             steps {
-                withCredentials([string(credentialsId: "${OC_TOKEN_ID}", variable: 'OC_TOKEN')]) {
-                    sh '''
-                        echo "Deploying applications to OpenShift from Quay.io..."
-                        oc login --token=$OC_TOKEN --server=${OPENSHIFT_SERVER} --insecure-skip-tls-verify
-                        oc project ${PROJECT_NAME}
+                container('buildah') {
+                    withCredentials([
+                        string(credentialsId: "${OC_TOKEN_ID}", variable: 'OC_TOKEN'),
+                        string(credentialsId: "${MONGO_URL_CRED_ID}", variable: 'MONGO_URL'),
+                        string(credentialsId: "${MONGO_USERNAME_CRED_ID}", variable: 'MONGO_USERNAME'),
+                        string(credentialsId: "${MONGO_PASSWORD_CRED_ID}", variable: 'MONGO_PASSWORD'),
+                        string(credentialsId: "${SECRET_KEY_CRED_ID}", variable: 'SECRET_KEY'),
+                        string(credentialsId: "${CLOUD_NAME_CRED_ID}", variable: 'CLOUD_NAME'),
+                        string(credentialsId: "${CLOUDINARY_API_KEY_CRED_ID}", variable: 'API_KEY'),
+                        string(credentialsId: "${CLOUDINARY_API_SECRET_CRED_ID}", variable: 'API_SECRET')
+                    ]) {
+                        sh '''
+                            echo "Deploying applications to OpenShift from Quay.io..."
+                            oc login --token=$OC_TOKEN --server=${OPENSHIFT_SERVER} --insecure-skip-tls-verify
+                            oc project ${PROJECT_NAME}
 
-                        # Clean up existing resources
-                        oc delete all -l app=job-frontend --ignore-not-found=true
-                        oc delete all -l app=job-backend --ignore-not-found=true
+                            # Clean up existing resources
+                            oc delete all -l app=job-frontend --ignore-not-found=true
+                            oc delete all -l app=job-backend --ignore-not-found=true
 
-                        echo "Waiting for cleanup to complete..."
-                        sleep 10
+                            echo "Waiting for cleanup to complete..."
+                            sleep 10
 
-                        # Deploy frontend
-                        echo "Deploying frontend..."
-                        oc new-app ${FRONTEND_IMAGE} --name=job-frontend
-                        oc expose svc/job-frontend
+                            # Deploy frontend
+                            echo "Deploying frontend..."
+                            oc new-app ${FRONTEND_IMAGE} --name=job-frontend
+                            oc expose svc/job-frontend
 
-                        # Deploy backend  
-                        echo "Deploying backend..."
-                        oc new-app ${BACKEND_IMAGE} --name=job-backend \
-                            -e MONGO_URL="mongodb://localhost:27017/job_portal" \
-                            -e MONGO_INITDB_ROOT_USERNAME="admin" \
-                            -e MONGO_INITDB_ROOT_PASSWORD="admin" \
-                            -e SECRET_KEY="HarHarMahadev" \
-                            -e CORS_ORIGIN="http://job-backend-jenkins.apps.ocp4.smartek.ae" \
-                            -e CLOUD_NAME="dq8ariioz" \
-                            -e API_KEY="858319527567711" \
-                            -e API_SECRET="zvNVBmcA32j7XWdPaFJOeit-5ow"
-                        oc expose svc/job-backend
+                            # Deploy backend  
+                            echo "Deploying backend..."
+                            oc new-app ${BACKEND_IMAGE} --name=job-backend \
+                                -e MONGO_URL="$MONGO_URL" \
+                                -e MONGO_INITDB_ROOT_USERNAME="$MONGO_USERNAME" \
+                                -e MONGO_INITDB_ROOT_PASSWORD="$MONGO_PASSWORD" \
+                                -e SECRET_KEY="$SECRET_KEY" \
+                                -e CORS_ORIGIN="${BACKEND_SERVICE_URL}" \
+                                -e CLOUD_NAME="$CLOUD_NAME" \
+                                -e API_KEY="$API_KEY" \
+                                -e API_SECRET="$API_SECRET"
+                            # Backend route exposure removed - using service communication only
 
-                        echo "Waiting for deployments..."
-                        oc rollout status deployment/job-frontend --timeout=300s || echo "Frontend deployment timeout"
-                        oc rollout status deployment/job-backend --timeout=300s || echo "Backend deployment timeout"
+                            echo "Waiting for deployments..."
+                            oc rollout status deployment/job-frontend --timeout=300s || echo "Frontend deployment timeout"
+                            oc rollout status deployment/job-backend --timeout=300s || echo "Backend deployment timeout"
 
-                        echo "Deployment completed successfully"
-                        echo "Frontend route: $(oc get route job-frontend -o jsonpath='{.spec.host}' 2>/dev/null || echo 'Route not ready yet')"
-                        echo "Backend route: $(oc get route job-backend -o jsonpath='{.spec.host}' 2>/dev/null || echo 'Route not ready yet')"
-                        
-                        # Show pod status
-                        echo "=== POD STATUS ==="
-                        oc get pods -l app=job-frontend -o wide || echo "Frontend pods not found"
-                        oc get pods -l app=job-backend -o wide || echo "Backend pods not found"
-                    '''
+                            echo "Deployment completed successfully"
+                            echo "Frontend route: $(oc get route job-frontend -o jsonpath='{.spec.host}' 2>/dev/null || echo 'Route not ready yet')"
+                            echo "Backend service: job-backend.${PROJECT_NAME}.svc.cluster.local:3000"
+                            
+                            # Show pod status
+                            echo "=== POD STATUS ==="
+                            oc get pods -l app=job-frontend -o wide || echo "Frontend pods not found"
+                            oc get pods -l app=job-backend -o wide || echo "Backend pods not found"
+                        '''
+                    }
                 }
             }
         }
+
+        // stage('Deploy with Helm') {
+        //     steps {
+        //         container('helm') {
+        //             withCredentials([
+        //                 string(credentialsId: "${OC_TOKEN_ID}", variable: 'OC_TOKEN'),
+        //                 string(credentialsId: "${HELM_CHART_PATH_CRED_ID}", variable: 'HELM_CHART_PATH'),
+        //                 string(credentialsId: "${MONGO_URL_CRED_ID}", variable: 'MONGO_URL'),
+        //                 string(credentialsId: "${MONGO_USERNAME_CRED_ID}", variable: 'MONGO_USERNAME'),
+        //                 string(credentialsId: "${MONGO_PASSWORD_CRED_ID}", variable: 'MONGO_PASSWORD'),
+        //                 string(credentialsId: "${SECRET_KEY_CRED_ID}", variable: 'SECRET_KEY'),
+        //                 string(credentialsId: "${CLOUD_NAME_CRED_ID}", variable: 'CLOUD_NAME'),
+        //                 string(credentialsId: "${CLOUDINARY_API_KEY_CRED_ID}", variable: 'API_KEY'),
+        //                 string(credentialsId: "${CLOUDINARY_API_SECRET_CRED_ID}", variable: 'API_SECRET')
+        //             ]) {
+        //                 sh '''
+        //                     echo "Deploying applications with Helm..."
+        //                     oc login --token=$OC_TOKEN --server=${OPENSHIFT_SERVER} --insecure-skip-tls-verify
+        //                     oc project ${PROJECT_NAME}
+
+        //                     # Install or upgrade the Helm release
+        //                     helm upgrade --install job-portal $HELM_CHART_PATH \
+        //                         --set frontend.image.repository=quay.io/bilelrifi/job-portal-frontend \
+        //                         --set frontend.image.tag=${BUILD_NUMBER} \
+        //                         --set backend.image.repository=quay.io/bilelrifi/job-portal-backend \
+        //                         --set backend.image.tag=${BUILD_NUMBER} \
+        //                         --set backend.env.MONGO_URL="$MONGO_URL" \
+        //                         --set backend.env.MONGO_INITDB_ROOT_USERNAME="$MONGO_USERNAME" \
+        //                         --set backend.env.MONGO_INITDB_ROOT_PASSWORD="$MONGO_PASSWORD" \
+        //                         --set backend.env.SECRET_KEY="$SECRET_KEY" \
+        //                         --set backend.env.CORS_ORIGIN="${BACKEND_SERVICE_URL}" \
+        //                         --set backend.env.CLOUD_NAME="$CLOUD_NAME" \
+        //                         --set backend.env.API_KEY="$API_KEY" \
+        //                         --set backend.env.API_SECRET="$API_SECRET" \
+        //                         --set frontend.env.VITE_API_BASE_URL="${BACKEND_SERVICE_URL}" \
+        //                         --namespace ${PROJECT_NAME} \
+        //                         --wait \
+        //                         --timeout=300s
+
+        //                     echo "Deployment completed successfully with Helm"
+                            
+        //                     # Show deployment status
+        //                     echo "=== DEPLOYMENT STATUS ==="
+        //                     oc get all -l app.kubernetes.io/instance=job-portal
+                            
+        //                     echo "Frontend route: $(oc get route job-frontend -o jsonpath='{.spec.host}' 2>/dev/null || echo 'Route not ready yet')"
+        //                     echo "Backend service: job-backend.${PROJECT_NAME}.svc.cluster.local:3000"
+        //                 '''
+        //             }
+        //         }
+        //     }
+        // }
     }
 
     post {
@@ -333,9 +326,8 @@ EOF
         }
         success {
             echo 'Pipeline succeeded!'
-            echo 'Your applications should be accessible at:'
+            echo 'Your frontend application should be accessible at:'
             echo 'Frontend: http://job-frontend-jenkins.apps.ocp4.smartek.ae'
-            echo 'Backend: http://job-backend-jenkins.apps.ocp4.smartek.ae'
         }
         failure {
             echo 'Pipeline failed. Check logs for details.'
