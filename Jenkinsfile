@@ -107,7 +107,7 @@ pipeline {
                                 
                                 # Create a temporary fixed Containerfile
                                 echo "Creating fixed Containerfile with fully qualified image names..."
-                                sed 's|FROM nginx:alpine|FROM quay.io/jitesoft/nginx:alpine|g; s|FROM node:|FROM quay.io/fedora/nodejs-20:|g' ./frontend/Containerfile > ./frontend/Containerfile.fixed
+                                sed 's|FROM nginx:alpine|FROM docker.io/library/nginx:alpine|g; s|FROM node:|FROM docker.io/library/node:|g' ./frontend/Containerfile > ./frontend/Containerfile.fixed
                                 
                                 DOCKERFILE_PATH="./frontend/Containerfile.fixed"
                                 BUILD_CONTEXT="./frontend"
@@ -203,7 +203,7 @@ pipeline {
                                 
                                 # Create a temporary fixed Containerfile
                                 echo "Creating fixed Containerfile with fully qualified image names..."
-                                sed 's|FROM node:|FROM quay.io/fedora/nodejs-20:|g; s|FROM alpine|FROM quay.io/fedora/alpine:latest|g' ./backend/Containerfile > ./backend/Containerfile.fixed
+                                sed 's|FROM node:|FROM docker.io/library/node:|g; s|FROM alpine|FROM docker.io/library/alpine|g' ./backend/Containerfile > ./backend/Containerfile.fixed
                                 
                                 DOCKERFILE_PATH="./backend/Containerfile.fixed"
                                 BUILD_CONTEXT="./backend"
