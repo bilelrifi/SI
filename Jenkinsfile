@@ -247,7 +247,7 @@ pipeline {
                                 -e CLOUD_NAME="$CLOUD_NAME" \
                                 -e API_KEY="$API_KEY" \
                                 -e API_SECRET="$API_SECRET"
-                            # Backend route exposure removed - using service communication only
+                            
 
                             echo "Waiting for deployments..."
                             oc rollout status deployment/job-frontend --timeout=300s || echo "Frontend deployment timeout"
