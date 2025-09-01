@@ -1,0 +1,23 @@
+- name: Copy keyfile
+  copy:
+    src: files/mongodb-keyfile
+    dest: "{{ mongodb_keyfile }}"
+    owner: "{{ mongodb_user }}"
+    group: "{{ mongodb_group }}"
+    mode: '0600'
+
+- name: Copy TLS certificate
+  copy:
+    src: files/serverCert.pem
+    dest: "{{ mongodb_tls_cert }}"
+    owner: "{{ mongodb_user }}"
+    group: "{{ mongodb_group }}"
+    mode: '0640'
+
+- name: Copy CA file
+  copy:
+    src: files/rootCAcombined.pem
+    dest: "{{ mongodb_tls_ca }}"
+    owner: "{{ mongodb_user }}"
+    group: "{{ mongodb_group }}"
+    mode: '0640'

@@ -1,0 +1,12 @@
+- name: Deploy MongoDB Replica Set
+  hosts: mongodb_servers
+  become: yes
+  roles:
+    - mongodb-install
+    - mongodb-replica
+  handlers:
+    - name: Restart MongoDB instances
+      service:
+        name: mongod@{{ item }}
+        state: restarted
+      loop: [27017, 27018, 27019]

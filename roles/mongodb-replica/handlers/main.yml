@@ -1,0 +1,8 @@
+- name: Reload systemd daemon
+  systemd:
+    daemon_reload: yes
+- name: Restart MongoDB instances
+  service:
+    name: mongod@{{ item }}
+    state: restarted
+  loop: [27017, 27018, 27019]

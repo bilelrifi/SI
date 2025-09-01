@@ -1,0 +1,127 @@
+- name: Stop existing MongoDB instances
+  service:
+    name: "{{ item }}"
+    state: stopped
+  loop:
+    - mongod
+    - mongod@27017
+    - mongod@27018
+    - mongod@27019
+  ignore_errors: yes
+
+- name: Kill any processes using MongoDB ports
+  shell: fuser -k -n tcp {{ item }} || true
+  loop: [27017, 27018, 27019]
+  become: yes
+  ignore_errors: yes
+
+- name: Kill any running mongod processes
+  shell: pkill -u mongod || true
+  ignore_errors: yes
+  become: yes
+
+- name: Remove existing MongoDB socket files
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /tmp/mongodb-27017.sock
+    - /tmp/mongodb-27018.sock
+    - /tmp/mongodb-27019.sock
+  become: yes
+
+- name: Create directories for MongoDB instances
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: mongod
+    group: mongod
+    mode: '0755'
+  loop:
+    - /var/lib/mongodb1
+    - /var/lib/mongodb2
+    - /var/lib/mongodb3
+    - /var/log/mongodb
+    - /var/run/mongodb
+    - /etc/ssl/mongo
+
+- name: Copy MongoDB keyfile
+  copy:
+    src: files/mongodb-keyfile
+    dest: /etc/mongodb-keyfile
+    owner: mongod
+    group: mongod
+    mode: '0600'
+
+- name: Copy TLS server certificate
+  copy:
+    src: files/serverCert.pem
+    dest: /etc/ssl/mongo/serverCert.pem
+    owner: mongod
+    group: mongod
+    mode: '0644'
+
+- name: Copy TLS root CA
+  copy:
+    src: files/rootCAcombined.pem
+    dest: /etc/ssl/mongo/rootCAcombined.pem
+    owner: mongod
+    group: mongod
+    mode: '0644'
+
+- name: Copy MongoDB systemd service template
+  copy:
+    src: files/mongod@.service
+    dest: /lib/systemd/system/mongod@.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Reload systemd daemon
+
+- name: Configure MongoDB instances
+  template:
+    src: mongod.conf.j2
+    dest: /etc/mongod-{{ item.port }}.conf
+    owner: root
+    group: root
+    mode: '0644'
+  loop:
+    - { port: 27017, dbpath: '/var/lib/mongodb1' }
+    - { port: 27018, dbpath: '/var/lib/mongodb2' }
+    - { port: 27019, dbpath: '/var/lib/mongodb3' }
+  notify:
+    - Reload systemd daemon
+    - Restart MongoDB instances
+
+- name: Ensure MongoDB instances are started
+  service:
+    name: mongod@{{ item }}
+    state: started
+    enabled: yes
+  loop: [27017, 27018, 27019]
+
+- name: Check if replica set is initialized
+  shell: mongosh --host localhost --port 27017 --tls --tlsCertificateKeyFile /etc/ssl/mongo/serverCert.pem --tlsCAFile /etc/ssl/mongo/rootCAcombined.pem --eval "rs.status().ok" --quiet
+  register: rs_status
+  ignore_errors: yes
+  changed_when: false
+
+- name: Initialize replica set
+  shell: >
+    mongosh --host localhost --port 27017 --tls --tlsCertificateKeyFile /etc/ssl/mongo/serverCert.pem --tlsCAFile /etc/ssl/mongo/rootCAcombined.pem --eval 'rs.initiate({
+      _id: "rs0",
+      members: [
+        { _id: 0, host: "localhost:27017" },
+        { _id: 1, host: "localhost:27018" },
+        { _id: 2, host: "localhost:27019" }
+      ]
+    })'
+  when: rs_status.rc != 0
+
+- name: Wait for MongoDB primary to be available
+  shell: mongosh --host localhost --port 27017 --tls --tlsCertificateKeyFile /etc/ssl/mongo/serverCert.pem --tlsCAFile /etc/ssl/mongo/rootCAcombined.pem --eval "rs.isMaster().ismaster" --quiet
+  register: primary_status
+  until: primary_status.stdout == "true"
+  retries: 30
+  delay: 5
+  when: rs_status.rc == 0

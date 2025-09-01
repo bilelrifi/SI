@@ -1,0 +1,25 @@
+systemLog:
+  destination: file
+  logAppend: true
+  path: /var/log/mongodb/mongod-{{ item.port }}.log
+
+storage:
+  dbPath: {{ item.dbpath }}
+
+processManagement:
+  fork: true
+  pidFilePath: /var/run/mongodb/mongod-{{ item.port }}.pid
+
+net:
+  port: {{ item.port }}
+  bindIp: 0.0.0.0
+  tls:
+    mode: requireTLS
+    certificateKeyFile: {{ mongodb_tls_cert }}
+    CAFile: {{ mongodb_tls_ca }}
+
+security:
+  keyFile: /etc/mongodb-keyfile
+
+replication:
+  replSetName: rs0

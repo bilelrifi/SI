@@ -1,0 +1,15 @@
+[Unit]
+Description=MongoDB Node {{ item.name }}
+After=network.target
+
+[Service]
+User={{ mongodb_user }}
+Group={{ mongodb_group }}
+ExecStart=/usr/bin/numactl --interleave=all /usr/bin/mongod --config /etc/mongod{{ item.name }}.conf
+PIDFile=/var/run/mongodb/mongod{{ item.name }}.pid
+LimitNOFILE=64000
+LimitNPROC=64000
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

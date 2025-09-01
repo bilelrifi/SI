@@ -1,0 +1,21 @@
+systemLog:
+  destination: file
+  path: {{ item.logpath }}
+  logAppend: true
+  verbosity: 2
+storage:
+  dbPath: {{ item.dbpath }}
+  wiredTiger:
+    engineConfig:
+      cacheSizeGB: {{ mongodb_cache_size_gb }}
+net:
+  port: {{ item.port }}
+  bindIp: 127.0.0.1
+  tls:
+    mode: requireTLS
+    certificateKeyFile: {{ mongodb_tls_cert }}
+    CAFile: {{ mongodb_tls_ca }}
+replication:
+  replSetName: {{ mongodb_replset_name }}
+security:
+  keyFile: {{ mongodb_keyfile }}
